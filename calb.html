@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kards等差数列检测器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #000;
+            color: #ccc;
+            padding-top: 120px;
+        }
+        h2 {
+            text-align: center;
+            font-size: 2.2rem;
+            color: #fff;
+            margin-bottom: 60px;
+        }
+        /* 左右双框容器，中轴线居中 */
+        .box-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6cm;
+        }
+        /* 输入输出框：宽10cm，高4cm */
+        .input-box, .output-box {
+            width: 10cm;
+            height: 4cm;
+            background: #151528;
+            border: 1px solid #4da6ff;
+            border-radius: 8px;
+            padding: 12px;
+            color: #fff;
+            font-size: 1rem;
+        }
+        .input-box:focus {
+            outline: none;
+            box-shadow: 0 0 10px #4da6ff;
+        }
+        .output-box {
+            resize: none;
+            pointer-events: none;
+        }
+        /* 下方注意事项区域 */
+        .note-area {
+            max-width: 800px;
+            margin: 50px auto 0;
+            padding: 24px;
+            border: 1px solid #222;
+            border-radius: 10px;
+            line-height: 1.8;
+        }
+        .note-area h3 {
+            color: #4da6ff;
+            margin-bottom: 12px;
+        }
+        .note-area p {
+            margin: 6px 0;
+        }
+    </style>
+</head>
+<body>
+    <h2>Kards 等差数列检测器</h2>
+
+    <div class="box-row">
+        <!-- 左侧输入框 -->
+        <input class="input-box" id="numInput" placeholder="输入数列，英文逗号分隔，例：19,17,15,13,11">
+        <!-- 右侧输出框 -->
+        <textarea class="output-box" id="resultOutput" readonly placeholder="检测结果会显示在这里"></textarea>
+    </div>
+
+    <!-- 使用说明/注意事项 -->
+    <div class="note-area">
+        <h3>使用说明（对应原版Python代码逻辑）</h3>
+        <p>创作背景：作为《kards》玩家，手动计算等差数列容易出错，会浪费某个神秘德国5k指令，所以制作此软件。</p>
+        <p>1. 输入格式：数字之间仅使用英文逗号分隔，禁止空格、中文逗号；</p>
+        <p>2. 判断原理：提取数列前两位差值，遍历所有相邻数字对比差值是否统一；</p>
+        <p>3. 数列长度要求：最少输入2个数字才能进行判断；</p>
+        <p>4. 触发计算：输入完成后点击页面空白处自动输出结果；</p>
+        <p>5. 错误提示：若输入文字、符号等非数字内容，会直接提示格式错误。</p>
+        <p>6. 兑，。扎扎师。，吴迪！？</p>
+    </div>
+
+<script>
+    // 完全复刻你的Python代码逻辑
+    function checkArithmetic(arr) {
+        let kaiguan = 0;
+        let ww = arr[0] - arr[1];
+        for(let i = 0; i < arr.length - 1; i++){
+            let aa = arr[i] - arr[i+1];
+            if(aa !== ww){
+                kaiguan = 1;
+            }
+        }
+        if(kaiguan === 0){
+            return "这组数字是等差数列";
+        }else{
+            return "这组数字不是等差数列";
+        }
+    }
+
+    const inputDom = document.getElementById("numInput");
+    const outputDom = document.getElementById("resultOutput");
+
+    // 失去焦点自动计算
+    inputDom.addEventListener("blur", function(){
+        let text = this.value.trim();
+        if(!text){
+            outputDom.value = "请输入数字数列";
+            return;
+        }
+        let strList = text.split(",");
+        let numList = [];
+        for(let s of strList){
+            let num = Number(s.trim());
+            if(isNaN(num)){
+                outputDom.value = "输入包含非数字内容，请检查格式";
+                return;
+            }
+            numList.push(num);
+        }
+        if(numList.length < 2){
+            outputDom.value = "数列至少需要2个数字";
+            return;
+        }
+        let res = checkArithmetic(numList);
+        outputDom.value = res;
+    })
+</script>
+</body>
+</html>

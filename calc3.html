@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>函数类型分辨器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #000;
+            color: #ccc;
+            padding-top: 120px;
+        }
+        h2 {
+            text-align: center;
+            font-size: 2.2rem;
+            color: #fff;
+            margin-bottom: 60px;
+        }
+        /* 左右双框容器，中轴线居中 */
+        .box-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6cm;
+        }
+        /* 输入输出框：宽10cm，高4cm */
+        .input-box, .output-box {
+            width: 10cm;
+            height: 4cm;
+            background: #151528;
+            border: 1px solid #4da6ff;
+            border-radius: 8px;
+            padding: 12px;
+            color: #fff;
+            font-size: 1rem;
+        }
+        .input-box:focus {
+            outline: none;
+            box-shadow: 0 0 10px #4da6ff;
+        }
+        .output-box {
+            resize: none;
+            pointer-events: none;
+        }
+        /* 下方注意事项区域 */
+        .note-area {
+            max-width: 800px;
+            margin: 50px auto 0;
+            padding: 24px;
+            border: 1px solid #222;
+            border-radius: 10px;
+            line-height: 1.8;
+        }
+        .note-area h3 {
+            color: #4da6ff;
+            margin-bottom: 12px;
+        }
+        .note-area p {
+            margin: 6px 0;
+        }
+    </style>
+</head>
+<body>
+    <h2>函数类型分辨器</h2>
+
+    <div class="box-row">
+        <!-- 左侧输入框 -->
+        <input class="input-box" id="funcInput" placeholder="输入函数表达式，例：y=2x²+3x-1">
+        <!-- 右侧输出框 -->
+        <textarea class="output-box" id="resultOutput" readonly placeholder="函数识别结果会显示在这里"></textarea>
+    </div>
+
+    <!-- 使用说明/注意事项 -->
+    <div class="note-area">
+        <h3>使用说明（函数识别逻辑）</h3>
+        <p>创作背景：手动区分函数类型容易混淆，专门制作此工具快速识别。</p>
+        <p>1. 输入格式：标准写法 y=xxx，x平方使用 x²，反比例写 k/x；</p>
+        <p>2. 判断原理：匹配表达式特征，区分常函数、一次、二次、反比例；</p>
+        <p>3. 支持格式示例：y=5、y=3x+2、y=-2x²+1、y=4/x；</p>
+        <p>4. 触发计算：输入完成后点击页面空白处自动输出结果；</p>
+        <p>5. 错误提示：格式不规范、不含x、非法符号会提示修正；</p>
+        <p>6. 暂不支持高次函数、三角函数、对数等复杂函数。</p>
+    </div>
+
+<script>
+    function checkFuncType(expr) {
+        let text = expr.replace(/\s/g, '');
+        // 必须包含 y=
+        if (!text.includes('y=')) return "格式错误，请以 y= 开头输入函数";
+        let right = text.split('=')[1];
+
+        // 反比例：包含 /x
+        if (/\/x/.test(right)) {
+            return "该函数为：反比例函数";
+        }
+        // 二次函数：包含 x²
+        if (/x²/.test(right)) {
+            return "该函数为：二次函数";
+        }
+        // 一次函数：包含 x 无平方
+        if (/x/.test(right)) {
+            return "该函数为：一次函数";
+        }
+        // 无x，常函数
+        return "该函数为：常函数";
+    }
+
+    const inputDom = document.getElementById("funcInput");
+    const outputDom = document.getElementById("resultOutput");
+
+    inputDom.addEventListener("blur", function(){
+        let text = this.value.trim();
+        if(!text){
+            outputDom.value = "请输入函数表达式";
+            return;
+        }
+        let res = checkFuncType(text);
+        outputDom.value = res;
+    })
+</script>
+</body>
+</html>

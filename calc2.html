@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kards等比数列检测器</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #000;
+            color: #ccc;
+            padding-top: 120px;
+        }
+        h2 {
+            text-align: center;
+            font-size: 2.2rem;
+            color: #fff;
+            margin-bottom: 60px;
+        }
+        /* 左右双框容器，中轴线居中 */
+        .box-row {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6cm;
+        }
+        /* 输入输出框：宽10cm，高4cm */
+        .input-box, .output-box {
+            width: 10cm;
+            height: 4cm;
+            background: #151528;
+            border: 1px solid #4da6ff;
+            border-radius: 8px;
+            padding: 12px;
+            color: #fff;
+            font-size: 1rem;
+        }
+        .input-box:focus {
+            outline: none;
+            box-shadow: 0 0 10px #4da6ff;
+        }
+        .output-box {
+            resize: none;
+            pointer-events: none;
+        }
+        /* 下方注意事项区域 */
+        .note-area {
+            max-width: 800px;
+            margin: 50px auto 0;
+            padding: 24px;
+            border: 1px solid #222;
+            border-radius: 10px;
+            line-height: 1.8;
+        }
+        .note-area h3 {
+            color: #4da6ff;
+            margin-bottom: 12px;
+        }
+        .note-area p {
+            margin: 6px 0;
+        }
+    </style>
+</head>
+<body>
+    <h2>等比数列检测器</h2>
+
+    <div class="box-row">
+        <!-- 左侧输入框 -->
+        <input class="input-box" id="numInput" placeholder="输入数列，英文逗号分隔，例：2,6,18,54,162">
+        <!-- 右侧输出框 -->
+        <textarea class="output-box" id="resultOutput" readonly placeholder="检测结果会显示在这里"></textarea>
+    </div>
+
+    <!-- 使用说明/注意事项 -->
+    <div class="note-area">
+        <h3>使用说明（等比数列判断逻辑）</h3>
+        <p>创作背景：无</p>
+        <p>1. 输入格式：数字之间仅使用英文逗号分隔，禁止空格、中文逗号；</p>
+        <p>2. 判断原理：提取前两项比值，遍历所有相邻数字对比比值是否统一；</p>
+        <p>3. 特殊限制：数列中不能出现0，0无法构成等比数列；</p>
+        <p>4. 数列长度要求：最少输入2个数字才能进行判断；</p>
+        <p>5. 触发计算：输入完成后点击页面空白处自动输出结果；</p>
+        <p>6. 错误提示：若输入文字、符号、0值等非法内容，会直接提示对应错误。</p>
+    </div>
+
+<script>
+    // 判断等比数列核心函数
+    function checkGeometric(arr) {
+        // 首项为0直接排除
+        if (arr[0] === 0) return "数列包含0，无法构成等比数列";
+        let flag = 0;
+        // 计算初始公比
+        let ratio = arr[1] / arr[0];
+        for(let i = 0; i < arr.length - 1; i++){
+            let currentRatio = arr[i+1] / arr[i];
+            // 浮点误差容错，差值极小视为相等
+            if(Math.abs(currentRatio - ratio) > 0.000001){
+                flag = 1;
+            }
+        }
+        if(flag === 0){
+            return "这组数字是等比数列，公比为：" + ratio;
+        }else{
+            return "这组数字不是等比数列";
+        }
+    }
+
+    const inputDom = document.getElementById("numInput");
+    const outputDom = document.getElementById("resultOutput");
+
+    // 失去焦点自动计算
+    inputDom.addEventListener("blur", function(){
+        let text = this.value.trim();
+        if(!text){
+            outputDom.value = "请输入数字数列";
+            return;
+        }
+        let strList = text.split(",");
+        let numList = [];
+        for(let s of strList){
+            let num = Number(s.trim());
+            if(isNaN(num)){
+                outputDom.value = "输入包含非数字内容，请检查格式";
+                return;
+            }
+            numList.push(num);
+        }
+        if(numList.length < 2){
+            outputDom.value = "数列至少需要2个数字";
+            return;
+        }
+        let res = checkGeometric(numList);
+        outputDom.value = res;
+    })
+</script>
+</body>
+</html>

@@ -1,0 +1,1702 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>外接LED与摇滚节奏灯</title>
+<style>
+:root {
+  /* ── 版式 token：所有主题共用，主题文件不得覆盖 ── */
+  --pad-y: 4.5rem;
+  --pad-x: 5rem;
+  --pad-bottom: 4rem;
+  --fs-h1: 3.2rem;
+  --fs-h2: 2.4rem;
+  --fs-body: 1.75rem;
+  --fs-small: 1.4rem;
+  --radius: 1rem;
+  --gap: 1.4rem;
+  --hud-offset-x: 1.2rem;
+  --hud-offset-y: 0.8rem;
+
+  /* ── 颜色 token：默认主题（暖纸），可被 themes/*.css 覆盖 ── */
+  --paper: #f7f4ec;
+  --ink: #16140f;
+  --ink-soft: #4a453e;
+  --accent: #e8590c;
+  --line: #16140f;
+  --line-soft: rgba(22, 20, 15, 0.18);
+  --stage: #d9d4c8;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--stage);
+  color: var(--ink);
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+}
+
+.stage {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--stage);
+}
+
+.deck {
+  aspect-ratio: 16 / 9;
+  width: min(100vw, calc(100vh * 16 / 9));
+  height: auto;
+  max-height: 100vh;
+  background: var(--paper);
+  position: relative;
+  overflow: hidden;
+}
+
+.slide {
+  display: none;
+  position: absolute;
+  inset: 0;
+  padding: var(--pad-y) var(--pad-x) var(--pad-bottom);
+  overflow: hidden;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 1rem var(--gap);
+  min-height: 0;
+}
+
+.slide.is-current { display: grid; }
+
+.slide-head { grid-column: 1 / -1; min-width: 0; }
+.slide-body {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+.slide-media {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.slide[data-layout="stack"]:not(.has-media) .slide-media { display: none; }
+.slide[data-layout="stack"].has-media {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.slide[data-layout="split-right"],
+.slide[data-layout="split-left"] {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.slide[data-layout="split-right"] .slide-body { grid-column: 1; }
+.slide[data-layout="split-right"] .slide-media { grid-column: 2; }
+.slide[data-layout="split-left"] .slide-body { grid-column: 2; }
+.slide[data-layout="split-left"] .slide-media { grid-column: 1; }
+
+.slide[data-layout="split-right"][data-ratio="60/40"],
+.slide[data-layout="split-left"][data-ratio="60/40"] {
+  grid-template-columns: 3fr 2fr;
+}
+.slide[data-layout="split-left"][data-ratio="60/40"] {
+  grid-template-columns: 2fr 3fr;
+}
+.slide[data-layout="split-right"][data-ratio="40/60"],
+.slide[data-layout="split-left"][data-ratio="40/60"] {
+  grid-template-columns: 2fr 3fr;
+}
+.slide[data-layout="split-left"][data-ratio="40/60"] {
+  grid-template-columns: 3fr 2fr;
+}
+
+.slide[data-layout="split-bottom"] {
+  grid-template-rows: auto minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+.slide[data-layout="split-bottom"] .slide-body { grid-row: 2; }
+.slide[data-layout="split-bottom"] .slide-media { grid-row: 3; }
+
+.slide[data-layout="split-top"] {
+  grid-template-rows: auto minmax(0, 1.1fr) minmax(0, 0.9fr);
+}
+.slide[data-layout="split-top"] .slide-media { grid-row: 2; }
+.slide[data-layout="split-top"] .slide-body { grid-row: 3; }
+
+.slide[data-layout="cover"] {
+  display: none;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+.slide[data-layout="cover"].is-current { display: grid; }
+
+.media-slot {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+}
+.media-slot img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+}
+
+/* ── 视频槽：外链只给超链接卡片（不嵌 iframe）；本地 assets/*.mp4 才用 <video> ── */
+.media-slot.video-slot {
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.media-slot .media-embed {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 2px solid var(--line);
+  background: #000;
+}
+.video-link {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 2.2rem;
+  width: 100%;
+  min-height: 0;
+  padding: 3.4vh 2.6vw;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  color: var(--ink);
+  text-decoration: none;
+}
+.video-link:hover,
+.video-link:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+.video-link-play {
+  flex: 0 0 auto;
+  width: 8rem;
+  height: 8rem;
+  display: grid;
+  place-items: center;
+  padding-left: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--paper);
+  font-size: 3.2rem;
+  line-height: 1;
+}
+.video-link-text { min-width: 0; }
+.video-link-title {
+  display: block;
+  font-size: clamp(32px, 3vw, 50px);
+  font-weight: 800;
+  line-height: 1.2;
+}
+.video-link-url {
+  display: block;
+  margin-top: 1.1rem;
+  font-size: 1.6rem;
+  color: var(--ink-soft);
+  word-break: break-all;
+}
+.video-link-go {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 2.1rem;
+  font-weight: 800;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.slide-body img {
+  max-width: 100%;
+  height: auto;
+}
+
+.slide h1 {
+  font-size: var(--fs-h2);
+  font-weight: 700;
+  margin: 0 0 1.2rem;
+  line-height: 1.25;
+}
+
+.slide p, .slide li {
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  margin: 0.4rem 0;
+}
+
+.slide ul, .slide ol { margin: 0.6rem 0 0 1.6rem; padding: 0; }
+
+.slide h1 + p,
+.slide .kicker {
+  font-size: var(--fs-small);
+  color: var(--accent);
+  font-weight: 700;
+  margin: -0.6rem 0 1.1rem;
+}
+.slide .kicker { margin-top: -0.6rem; }
+
+.slide table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: var(--fs-small);
+  background: var(--paper);
+}
+.slide th, .slide td {
+  border: 2px solid var(--line);
+  padding: 0.55rem 0.8rem;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.4;
+}
+.slide th {
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  font-weight: 700;
+}
+.slide td code, .slide th code { font-size: 1.15rem; }
+
+.cover {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.cover h1 { font-size: var(--fs-h1); margin-bottom: 1.4rem; }
+.cover-meta { font-size: var(--fs-body); margin: 0.3rem 0; }
+.cover-date { font-size: var(--fs-small); color: var(--accent); margin: 0.3rem 0; }
+
+pre, code {
+  font-family: Consolas, "Sarasa Mono SC", "Noto Sans Mono", monospace;
+}
+
+pre {
+  font-size: 1.25rem;
+  line-height: 1.45;
+  border: 2px solid var(--line);
+  padding: 1rem 1.2rem;
+  overflow: auto;
+  background: var(--paper);
+  margin: 1rem 0;
+}
+
+code { font-size: 1.2rem; }
+
+.tok-k { font-weight: 700; color: var(--accent); }
+.tok-s { color: var(--ink); }
+.tok-c { color: var(--ink-soft); }
+.tok-n { color: var(--ink); }
+
+/* HUD 必须固定在画布右下角：严禁底部居中（会遮挡正文底端与卡片） */
+.hud {
+  position: absolute;
+  right: var(--hud-offset-x);
+  bottom: var(--hud-offset-y);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.hud-btn {
+  font: inherit;
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--line-soft);
+  border-radius: calc(var(--radius) * 0.4);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.hud-btn:hover { border-color: var(--accent); color: var(--accent); }
+.hud-page { font-size: 1.3rem; font-weight: 700; color: var(--accent); }
+
+.fragment { visibility: hidden; }
+.fragment.is-shown { visibility: visible; }
+
+body.is-overview {
+  overflow: auto;
+  background: var(--stage);
+}
+
+body.is-overview .stage { display: block; height: auto; padding: 1rem; }
+body.is-overview .deck {
+  width: auto;
+  height: auto;
+  max-height: none;
+  aspect-ratio: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.8rem;
+  overflow: visible;
+  background: transparent;
+}
+body.is-overview .slide {
+  display: grid;
+  position: relative;
+  inset: auto;
+  aspect-ratio: 16 / 9;
+  transform: none;
+  font-size: 40%;
+  padding: 1rem;
+  overflow: hidden;
+  background: var(--paper);
+  border: 2px solid var(--line);
+  cursor: pointer;
+}
+body.is-overview .slide.is-current { outline: 3px solid var(--accent); }
+body.is-overview .hud { display: none; }
+
+/* ── Reference-style blocks / replica theme ─────────────────────── */
+:root {
+  --brand: #e8590c;
+  --brand-soft: #fff4ea;
+  --card-bg: #ffffff;
+  --code-bg: #1e293b;
+  --code-head: #0f172a;
+  --code-line: #334155;
+  --code-ink: #e2e8f0;
+  --green: #16a34a;
+  --red: #dc2626;
+  --amber: #d97706;
+  --ink-muted: #64748b;
+}
+
+/* cover with full-bleed image */
+.layout-base .slide[data-layout="cover"] { padding: 0; }
+.layout-base .slide[data-layout="cover"] .cover:not(.cover-image) {
+  padding: var(--pad-y) var(--pad-x);
+}
+
+.layout-base .cover-image {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--paper);
+}
+.layout-base .cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+.layout-base .cover-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.92) 0%, rgba(15, 23, 42, 0.65) 45%, rgba(15, 23, 42, 0.2) 100%);
+}
+.layout-base .cover-copy {
+  position: relative;
+  z-index: 3;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2.2vh;
+  padding-left: 6%;
+  max-width: 70%;
+}
+.layout-base .cover-kicker {
+  font-size: clamp(15px, 1.6vw, 22px);
+  font-weight: 800;
+  color: #38bdf8;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.layout-base .cover-copy h1 {
+  margin: 0;
+  font-size: clamp(40px, 4.8vw, 70px);
+  font-weight: 900;
+  line-height: 1.15;
+  color: #ffffff;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+.layout-base .cover-subtitle {
+  margin: 0;
+  font-size: clamp(18px, 2vw, 28px);
+  color: #cbd5e1;
+  font-weight: 700;
+}
+.layout-base .cover-badges { display: flex; gap: 14px; margin-top: 1.5vh; }
+.layout-base .cover-badge {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 6px 18px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+}
+.layout-base .cover-badge.alt {
+  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(37, 99, 235, 0.35);
+  color: #7dd3fc;
+}
+
+/* reference page frame */
+.layout-base .slide {
+  padding: 3.5% 4.5%;
+  background: var(--paper);
+}
+.layout-base .slide-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2vh;
+}
+.layout-base .slide-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 2vh;
+  padding-bottom: 1.5vh;
+  border-bottom: 2px solid var(--line);
+}
+.layout-base .slide-head h1 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 40px);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--ink);
+}
+.layout-base .slide-head .kicker {
+  margin: 0;
+  padding: 4px 14px;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 20px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: clamp(14px, 1.4vw, 19px);
+  font-weight: 700;
+}
+
+/* cards / banners / text */
+.layout-base .card.block-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.6vh;
+  padding: 2.2vh 2vw;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+}
+.layout-base .card.block-card h3 {
+  margin: 0 0 1vh;
+  font-size: clamp(19px, 1.9vw, 25px);
+  color: var(--ink);
+}
+.layout-base .card.block-card p,
+.layout-base .card.block-card li {
+  margin: 0.2rem 0;
+  font-size: clamp(15px, 1.4vw, 20px);
+  line-height: 1.55;
+  color: var(--ink-soft);
+  white-space: pre-line;
+}
+.layout-base .card.block-card strong { color: var(--ink); }
+.layout-base .card.tone-red { border-top: 6px solid var(--red); }
+.layout-base .card.tone-amber { border-top: 6px solid var(--amber); }
+.layout-base .card.tone-blue { border-top: 6px solid var(--brand); }
+.layout-base .card.tone-green { border-top: 6px solid var(--green); }
+.layout-base .card.tone-slate { border-top: 6px solid var(--ink-muted); }
+.layout-base .card.tone-red-solid { border: 2px solid var(--red); background: #fef2f2; }
+.layout-base .card.tone-green-solid { border: 2px solid var(--green); background: #f0fdf4; }
+
+.layout-base .banner.block-banner {
+  padding: 1.5vh 1.8vw;
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--brand);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--ink);
+  font-size: clamp(15px, 1.45vw, 21px);
+  line-height: 1.5;
+}
+.layout-base .banner.alert {
+  border-color: #fecaca;
+  border-left-color: var(--red);
+  background: #fef2f2;
+  color: #991b1b;
+}
+.layout-base .banner.success {
+  border-color: #bbf7d0;
+  border-left-color: var(--green);
+  background: #f0fdf4;
+  color: #166534;
+}
+.layout-base .block-text {
+  font-size: clamp(16px, 1.5vw, 22px);
+  font-weight: 700;
+}
+.layout-base .card blockquote {
+  margin: 1.2vh 0 0;
+  padding: 1.2vh 1.2vw;
+  border-left: 6px solid var(--amber);
+  border-radius: 8px;
+  background: #fff7ed;
+  color: var(--ink);
+  font-size: clamp(14px, 1.3vw, 18px);
+}
+
+/* code blocks */
+.layout-base .code-wrapper {
+  overflow: hidden;
+  border: 1px solid var(--code-line);
+  border-radius: 12px;
+  background: var(--code-bg);
+}
+.layout-base .code-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--code-line);
+  background: var(--code-head);
+}
+.layout-base .code-lang {
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.layout-base .copy-btn {
+  padding: 4px 12px;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  background: #334155;
+  color: #f8fafc;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.layout-base .copy-btn:hover { border-color: var(--brand); background: var(--brand); color: #fff; }
+.layout-base .copy-btn.copied { border-color: var(--green); background: var(--green); color: #fff; }
+.layout-base .code-box {
+  margin: 0;
+  padding: 2vh 1.8vw;
+  overflow-x: auto;
+  border: 0;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  font-family: Consolas, Monaco, "Cascadia Code", monospace;
+  font-size: clamp(15px, 1.55vw, 22px);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.layout-base .code-box .tok-k,
+.layout-base .card pre .tok-k { color: #f472b6; font-weight: bold; }
+.layout-base .code-box .tok-s,
+.layout-base .card pre .tok-s { color: #4ade80; }
+.layout-base .code-box .tok-c,
+.layout-base .card pre .tok-c { color: #94a3b8; font-style: italic; }
+.layout-base .code-box .tok-n,
+.layout-base .card pre .tok-n { color: #fbbf24; }
+.layout-base .card pre {
+  margin: 0.4vh 0 0;
+  padding: 1.4vh 1.4vw;
+  overflow-x: auto;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: clamp(14px, 1.35vw, 19px);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.layout-base .card pre code { color: inherit; font-size: inherit; }
+
+/* block layouts */
+.layout-base .slide[data-layout="stack"] .slide-body {
+  justify-content: center;
+}
+.layout-base .slide[data-layout="cards-2"] .slide-body,
+.layout-base .slide[data-layout="cards-3"] .slide-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2vh 2.5vw;
+  align-content: center;
+}
+.layout-base .slide[data-layout="cards-3"] .slide-body {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.layout-base .slide[data-layout="cards-2"] .block-banner,
+.layout-base .slide[data-layout="cards-3"] .block-banner {
+  grid-column: 1 / -1;
+}
+.layout-base .slide[data-layout="stack"] .block-banner { width: 100%; }
+
+.layout-base .slide[data-layout="code-split"] .slide-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 2vh 2.5vw;
+  align-content: start;
+  align-items: start;
+}
+.layout-base .slide[data-layout="code-split"][data-has-text="true"] .slide-body {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.layout-base .slide[data-layout="code-split"] .block-card {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+.layout-base .slide[data-layout="code-split"] .block-text {
+  grid-column: 1;
+  grid-row: 1;
+}
+.layout-base .slide[data-layout="code-split"] .block-code {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: stretch;
+  width: 100%;
+  height: 100%;
+  max-height: 58vh;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.layout-base .slide[data-layout="code-split"][data-has-text="true"] .block-code {
+  grid-row: 2;
+}
+.layout-base .slide[data-layout="code-split"] .block-banner {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+.layout-base .slide[data-layout="code-split"][data-has-text="true"] .block-banner {
+  grid-row: 3;
+}
+
+.layout-base .slide[data-layout="code-split-reverse"] .slide-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 2vh 2.5vw;
+  align-content: start;
+  align-items: start;
+}
+.layout-base .slide[data-layout="code-split-reverse"] .block-card {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+.layout-base .slide[data-layout="code-split-reverse"] .block-code {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: stretch;
+  width: 100%;
+  height: 100%;
+  max-height: 58vh;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.layout-base .slide[data-layout="code-split-reverse"] .block-banner {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+/* 长代码不截内容：让 code-box 在剩余高度内滚动 */
+/* 注意：渲染器输出的是同一个元素 <div class="code-wrapper block-code">，
+   因此这里必须写成 .block-code.code-wrapper，不能再多一层后代选择器。 */
+/* 2026-09-17 修正：原来只给 code-split 配了滚动，其它版式（split-right 等）里
+   代码会直接被 .slide 的 overflow:hidden 裁掉且没有滚动条。这里改成全版式生效：
+   flex:1 1 auto + min-height:0 让代码块在版式剩余高度内收缩，内部再滚动。 */
+.layout-base .block-code.code-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.layout-base .slide[data-layout="code-split"] .block-code.code-wrapper,
+.layout-base .slide[data-layout="code-split-reverse"] .block-code.code-wrapper {
+  height: 100%;
+}
+.layout-base .block-code .code-box {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow: auto;
+}
+
+/* 代码块超过高度上限时，滚动条必须清晰可见；scroll 保证长代码初始就显示滚动条 */
+.layout-base .block-code .code-box {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: #64748b #0f172a;
+}
+.layout-base .block-code .code-box::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.layout-base .block-code .code-box::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+.layout-base .block-code .code-box::-webkit-scrollbar-thumb {
+  border: 2px solid #0f172a;
+  border-radius: 999px;
+  background: #64748b;
+}
+.layout-base .block-code .code-box::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* replica HUD: reference-style pill */
+.layout-base .hud {
+  right: 2vw;
+  bottom: 1.5vh;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
+}
+.layout-base .hud-btn {
+  padding: 2px 6px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 16px;
+}
+.layout-base .hud-btn:hover { background: var(--line); color: var(--ink); }
+.layout-base .hud-page {
+  color: var(--ink-muted);
+  font-size: 15px;
+  font-feature-settings: "tnum";
+}
+
+/* ── banwu theme signature: warm paper + orange + sharp black borders ── */
+.theme-banwu .slide-head {
+  border-bottom: 3px solid var(--ink);
+}
+.theme-banwu .slide-head .kicker {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--amber);
+  font-family: Consolas, Monaco, "Cascadia Code", monospace;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.theme-banwu .card.block-card {
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  box-shadow: none;
+}
+.theme-banwu .banner.block-banner {
+  border-radius: 0;
+  background: #fff9f2;
+}
+.theme-banwu .code-wrapper {
+  border: 2px solid var(--ink);
+  border-radius: 0;
+}
+.theme-banwu .copy-btn {
+  border-radius: 0;
+}
+.theme-banwu .hud {
+  border: 1px solid var(--line-soft);
+  border-radius: 0;
+  background: rgba(250, 247, 241, 0.94);
+  box-shadow: none;
+}
+.theme-banwu .hud-btn {
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  font-family: Consolas, Monaco, "Cascadia Code", monospace;
+}
+.theme-banwu .hud-btn:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+.theme-banwu .cover-scrim {
+  background:
+    radial-gradient(ellipse at 18% 20%, rgba(232, 89, 12, 0.22), transparent 42%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.55) 100%);
+}
+.theme-banwu .cover-badge {
+  border-color: var(--brand);
+  border-radius: 0;
+  background: var(--brand);
+  color: #ffffff;
+}
+.theme-banwu .cover-badge.alt {
+  border-color: rgba(232, 89, 12, 0.35);
+  background: rgba(232, 89, 12, 0.22);
+  color: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+:root {
+  --paper: #faf7f1;
+  --ink: #16140f;
+  --ink-soft: #4a453e;
+  --ink-muted: #8c8477;
+  --accent: #e8590c;
+  --line: rgba(22, 20, 15, 0.14);
+  --line-soft: rgba(22, 20, 15, 0.28);
+  --stage: #0f1115;
+  --brand: #e8590c;
+  --brand-soft: rgba(232, 89, 12, 0.08);
+  --card-bg: #ffffff;
+  --green: #2b8a3e;
+  --red: #d9383a;
+  --amber: #e8590c;
+}
+
+/* fill-blank：上边题目、下边打字区；内容只落本机 localStorage，不提交 */
+
+.fill-blank {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
+
+.fill-blank-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  font-size: clamp(14px, 1.15vw, 18px);
+  font-weight: 700;
+  color: var(--ink-muted);
+}
+
+.fill-blank-tip {
+  min-width: 0;
+}
+
+.fill-blank-reset {
+  margin-left: auto;
+  flex: 0 0 auto;
+  padding: 0.2rem 1rem;
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--ink-muted);
+  font: inherit;
+  cursor: pointer;
+}
+
+.fill-blank-reset:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.fill-blank-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 1.6rem;
+}
+
+.fill-blank[data-cols="1"] .fill-blank-grid { grid-template-columns: minmax(0, 1fr); }
+.fill-blank[data-cols="3"] .fill-blank-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+.fill-blank-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-height: 0;
+  padding: 1.6vh 1.2vw;
+  border: 2px solid var(--line);
+  border-top: 8px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+}
+
+.fill-blank-head {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.fill-blank-tag {
+  padding: 0.1rem 0.6rem;
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  font-size: clamp(13px, 1.15vw, 17px);
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+.fill-blank-state {
+  margin-left: auto;
+  font-size: clamp(12px, 1vw, 15px);
+  font-weight: 700;
+  color: var(--ink-muted);
+  opacity: 0;
+}
+
+.fill-blank-item[data-filled="true"] .fill-blank-state { opacity: 1; }
+
+.fill-blank-q {
+  margin: 0;
+  font-size: clamp(18px, 1.65vw, 25px);
+  font-weight: 800;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.fill-blank-input {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  box-sizing: border-box;
+  resize: none;
+  padding: 0.9rem 1rem;
+  border: 2px dashed var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: clamp(16px, 1.4vw, 21px);
+  line-height: 1.55;
+}
+
+.fill-blank-input::placeholder {
+  color: var(--ink-muted);
+  opacity: 0.7;
+}
+
+.fill-blank-input:focus {
+  outline: none;
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--card-bg);
+}
+
+</style>
+</head>
+<body class="layout-base theme-embedded" oncontextmenu="return false">
+<div class="stage">
+<div class="deck" data-total="15">
+<section class="slide" id="p1" data-slide="1" data-total="15" data-layout="cover" data-ratio="50/50" data-has-text="false">
+<div class="cover">
+<h1>外接LED与摇滚节奏灯</h1>
+<p class="cover-meta">Embedded · 2507 · 南204机房</p>
+<p class="cover-date">2026-09-18 星期五 · 第3周 课次1</p>
+</div>
+</section>
+<section class="slide" id="p2" data-slide="2" data-total="15" data-layout="cards-3" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>步骤 1：外接 LED 面包板接线（定点插孔）</h1><p class="kicker">硬件连接</p></header>
+<div class="slide-body"><div class="card block-card tone-slate"><h3>① 地线回路</h3>
+<p>· <strong>板子 GND</strong> ➔ 杜邦线 ➔ <strong>蓝线(-)负极列</strong><br>
+· 整条蓝线列成为公共地线  </p></div><div class="card block-card tone-green"><h3>② 串联限流电阻</h3>
+<p>· 电阻左脚插 <strong>15b</strong><br>
+· 电阻右脚插 <strong>18b</strong>（横跨两排，禁止同排）<br>
+· <strong>板子 4 号口</strong> ➔ 杜邦线 ➔ <strong>15a</strong>  </p></div><div class="card block-card tone-amber"><h3>③ 插入 LED（长正短负）</h3>
+<p>· LED <strong>长脚（正极）</strong> 插 <strong>18c</strong>（连着电阻）<br>
+· LED <strong>短脚（负极）</strong> 插 <strong>蓝线(-)负极列</strong><br>
+· 检查无虚接，准备写代码！  </p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p3" data-slide="3" data-total="15" data-layout="stack" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>步骤 2：安装 box.py 库（仅需一次）</h1><p class="kicker">库文件准备</p></header>
+<div class="slide-body"><p>把老师写好的工具库保存进单片机，以后写代码直接 <code>import box</code>：</p>
+<ol>
+<li><strong>新建文件</strong>：Thonny 点击左上角「新建」图标；</li>
+<li><strong>粘贴代码</strong>：全选复制教师分发的 <code>box.py</code> 代码粘贴进去；</li>
+<li><strong>另存为单片机</strong>：点击菜单栏「文件」➔「另存为...」➔ 选择<strong>「MicroPython 设备」</strong>；</li>
+<li><strong>命名保存</strong>：文件名严格输入 <strong><code>box.py</code></strong>（字母全小写），点击确定。</li>
+</ol><div class="card block-card tone-green-solid"><h3>🎯 检查点</h3>
+<p>· 查看 Thonny 左下角「MicroPython 设备」列表，是否已出现 <strong><code>box.py</code></strong>。<br>
+· 出现即代表安装成功，后续实验一行搞定硬件！  </p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p4" data-slide="4" data-total="15" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>实验 1 · 操作：点亮第一盏外接灯</h1><p class="kicker">单灯闪烁</p></header>
+<div class="slide-body"><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-k">from</span> box <span class="tok-k">import</span> LED
+<span class="tok-k">import</span> time
+
+<span class="tok-c"># 初始化 4 号接口 LED</span>
+led = LED(<span class="tok-n">4</span>)
+
+<span class="tok-k">while</span> <span class="tok-k">True</span>:
+    led.on()       <span class="tok-c"># 开灯</span>
+    time.sleep(<span class="tok-n">0.5</span>)
+    led.off()      <span class="tok-c"># 关灯</span>
+    time.sleep(<span class="tok-n">0.5</span>)</code></pre>
+</div><div class="card block-card tone-green-solid"><h3>🎯 动手做</h3>
+<ol>
+<li>完整复制代码，粘贴至 Thonny；</li>
+<li>按 <strong>F5</strong> 运行；</li>
+<li>观察面包板上的 LED 是否每隔 0.5 秒闪烁一次！</li>
+</ol></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p5" data-slide="5" data-total="15" data-layout="cards-3" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>实验 1 · 变式与规律：修改参数与限流本质</h1><p class="kicker">改参思考</p></header>
+<div class="slide-body"><div class="card block-card tone-blue"><h3>🛠️ 变式 1：警报急促闪</h3>
+<p>将两处 <code>0.5</code> 全改成 <strong><code>0.1</code></strong><br>
+运行观察小灯是否变成飞速急闪？</p></div><div class="card block-card tone-amber"><h3>🛠️ 变式 2：心跳节奏闪</h3>
+<p>将开灯等待改成 <strong><code>0.1</code></strong><br>
+关灯等待改成 <strong><code>0.9</code></strong><br>
+观察是否呈现心跳节拍？</p></div><div class="card block-card tone-slate"><h3>💡 规律总结</h3>
+<p>· <strong><code>led.on()</code></strong>：给 4 号脚输出 3.3V 高电平<br>
+· <strong><code>led.off()</code></strong>：给 4 号脚输出 0V 低电平<br>
+· <strong>电阻必须跨排</strong>：同一排直通会短路失效！  </p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p6" data-slide="6" data-total="15" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>实验 2 · 操作：按键控制外接灯</h1><p class="kicker">开关量输入</p></header>
+<div class="slide-body"><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-k">from</span> box <span class="tok-k">import</span> LED, Button
+<span class="tok-k">import</span> time
+
+led = LED(<span class="tok-n">4</span>)
+btn = Button(<span class="tok-n">0</span>)   <span class="tok-c"># 板载 BOOT 键</span>
+
+<span class="tok-k">while</span> <span class="tok-k">True</span>:
+    <span class="tok-k">if</span> btn.is_pressed():
+        led.on()
+    <span class="tok-k">else</span>:
+        led.off()
+    time.sleep(<span class="tok-n">0.05</span>)</code></pre>
+</div><div class="card block-card tone-green-solid"><h3>🎯 动手做</h3>
+<ol>
+<li>复制运行代码；</li>
+<li>大拇指按下开发板上的 <strong>BOOT 按键</strong>；</li>
+<li>观察：按下时灯亮，松开时灯灭！</li>
+</ol></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p7" data-slide="7" data-total="15" data-layout="cards-3" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>实验 2 · 变式与规律：按键翻转与状态保持</h1><p class="kicker">改参思考</p></header>
+<div class="slide-body"><div class="card block-card tone-blue"><h3>🛠️ 变式 1：按住狂闪</h3>
+<p>把 <code>led.on()</code> 替换为：<br>
+<strong><code>led.blink(times=2, delay=0.08)</code></strong><br>
+按住 BOOT 键，体验爆闪效果！</p></div><div class="card block-card tone-amber"><h3>🛠️ 变式 2：反向控制</h3>
+<p>把 <code>if</code> 里的 <code>led.on()</code> 和 <code>else</code> 里的 <code>led.off()</code> 调换位置；<br>
+变成“平时常亮，按下去反而熄灭”！</p></div><div class="card block-card tone-slate"><h3>💡 规律总结</h3>
+<p>· <strong><code>btn.is_pressed()</code></strong>：按下为 True，松开为 False<br>
+· <strong>条件分支控制</strong>：用 <code>if...else</code> 决定什么时候通电  </p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p8" data-slide="8" data-total="15" data-layout="stack" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>动动脑筋 · 填空总结</h1><p class="kicker">思考 · 认清连通规律</p></header>
+<div class="slide-body"><div class="demo" data-demo="fill-blank" data-payload="{&quot;columns&quot;: 3, &quot;note&quot;: &quot;对照工位上的面包板，用自己的话填写，内容自动存本机&quot;, &quot;items&quot;: [{&quot;id&quot;: &quot;q1&quot;, &quot;tag&quot;: &quot;简答 1&quot;, &quot;q&quot;: &quot;**a1** 和哪些接口连通？**f3** 和哪些接口连通？&quot;, &quot;placeholder&quot;: &quot;填写相连的孔位代号……&quot;}, {&quot;id&quot;: &quot;q2&quot;, &quot;tag&quot;: &quot;简答 2&quot;, &quot;q&quot;: &quot;**+1** 和哪些接口连通？&quot;, &quot;placeholder&quot;: &quot;填写连通的范围……&quot;}, {&quot;id&quot;: &quot;q3&quot;, &quot;tag&quot;: &quot;简答 3&quot;, &quot;q&quot;: &quot;总结**面包板的连通规律**是什么？&quot;, &quot;placeholder&quot;: &quot;用一两句话总结规律……&quot;}]}"></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p9" data-slide="9" data-total="15" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>实验 3 · 操作：人体触摸感应开关</h1><p class="kicker">电容触摸</p></header>
+<div class="slide-body"><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-k">from</span> box <span class="tok-k">import</span> LED, Touch
+<span class="tok-k">import</span> time
+
+led = LED(<span class="tok-n">4</span>)
+touch = Touch(<span class="tok-n">27</span>)   <span class="tok-c"># 27 号触摸脚</span>
+
+<span class="tok-k">while</span> <span class="tok-k">True</span>:
+    <span class="tok-k">if</span> touch.is_touched():
+        led.on()
+    <span class="tok-k">else</span>:
+        led.off()
+    time.sleep(<span class="tok-n">0.05</span>)</code></pre>
+</div><div class="card block-card tone-green-solid"><h3>🎯 动手做</h3>
+<ol>
+<li>从 <strong>27 号口</strong> 引出一根杜邦线，露在空中；</li>
+<li>运行代码，用手指捏住这根线的金属针头；</li>
+<li>观察：人体一碰，LED 瞬间点亮！</li>
+</ol></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p10" data-slide="10" data-total="15" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>实验 3 · 变式与规律：看透电容读数</h1><p class="kicker">改参思考</p></header>
+<div class="slide-body"><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-k">from</span> box <span class="tok-k">import</span> Touch
+<span class="tok-k">import</span> time
+
+touch = Touch(<span class="tok-n">27</span>)
+
+<span class="tok-k">while</span> <span class="tok-k">True</span>:
+    val = touch.read()
+    print(<span class="tok-s">&quot;当前电容读数:&quot;</span>, val)
+    time.sleep(<span class="tok-n">0.3</span>)</code></pre>
+</div><div class="card block-card tone-slate"><h3>💡 规律总结</h3>
+<ol>
+<li>运行左侧代码，看 Shell 窗口打印的数字；  </li>
+<li><strong>没摸时</strong>：读数通常在 <strong>500 ~ 700</strong>；  </li>
+<li><strong>手指摸住时</strong>：读数暴跌至 <strong>100 ~ 200</strong>；  </li>
+<li><strong>触摸本质</strong>：人体分流了电荷，导致读数变小！  </li>
+</ol></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p11" data-slide="11" data-total="15" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>实验 4 · 操作：双 LED 红绿灯交替</h1><p class="kicker">双路输出</p></header>
+<div class="slide-body"><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-k">from</span> box <span class="tok-k">import</span> LED
+<span class="tok-k">import</span> time
+
+red = LED(<span class="tok-n">4</span>)     <span class="tok-c"># 4 号红灯</span>
+green = LED(<span class="tok-n">18</span>)  <span class="tok-c"># 18 号绿灯</span>
+
+<span class="tok-k">while</span> <span class="tok-k">True</span>:
+    red.on()
+    green.off()
+    time.sleep(<span class="tok-n">0.5</span>)
+    
+    red.off()
+    green.on()
+    time.sleep(<span class="tok-n">0.5</span>)</code></pre>
+</div><div class="card block-card tone-green-solid"><h3>🎯 动手做</h3>
+<ol>
+<li><strong>加插绿灯</strong>：18 号脚接第 2 个电阻和绿灯（短脚同样插蓝线负极列）；  </li>
+<li>复制代码并运行；  </li>
+<li>观察红绿双灯像十字路口一样交替轮流点亮！  </li>
+</ol></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p12" data-slide="12" data-total="15" data-layout="cards-3" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>实验 4 · 变式挑战：警车爆闪与航行节奏</h1><p class="kicker">改参挑战</p></header>
+<div class="slide-body"><div class="card block-card tone-blue"><h3>🛠️ 变式 1：警车交替双爆闪</h3>
+<p>将循环内部代码替换为：<br>
+<code>red.blink(times=2, delay=0.08)</code><br>
+<code>green.blink(times=2, delay=0.08)</code><br>
+观察红绿双灯飞速急闪，体验特警车灯效！</p></div><div class="card block-card tone-amber"><h3>🛠️ 变式 2：无人机航行灯节奏</h3>
+<p>做“红一长、绿两短”：<br>
+<code>red.on(); time.sleep(0.8); red.off()</code><br>
+<code>green.blink(times=2, delay=0.12)</code><br>
+复刻真实无人机夜航防撞指示灯节奏！</p></div><div class="card block-card tone-slate"><h3>💡 规律总结</h3>
+<p>· <code>red</code> 与 <code>green</code> 是两个独立控制对象<br>
+· 代码执行的先后顺序决定了灯光韵律<br>
+· 组合不同的闪烁参数就能打造各种装备灯效  </p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p13" data-slide="13" data-total="15" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>实验 5 · 操作：摇滚节奏灯</h1><p class="kicker">经典节拍</p></header>
+<div class="slide-body"><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-k">from</span> box <span class="tok-k">import</span> LED
+<span class="tok-k">import</span> time
+
+red = LED(<span class="tok-n">4</span>)      <span class="tok-c"># 4号红灯 (咚)</span>
+green = LED(<span class="tok-n">18</span>)   <span class="tok-c"># 18号绿灯 (啪)</span>
+
+<span class="tok-k">while</span> <span class="tok-k">True</span>:
+    <span class="tok-c"># 咚 (Boom)</span>
+    red.on()
+    time.sleep()   <span class="tok-c"># 填入点亮时间</span>
+    red.off()
+    time.sleep(<span class="tok-n">0.25</span>)
+    
+    <span class="tok-c"># 咚 (Boom)</span>
+    red.on()
+    time.sleep()   <span class="tok-c"># 填入点亮时间</span>
+    red.off()
+    time.sleep(<span class="tok-n">0.25</span>)
+    
+    <span class="tok-c"># 啪！ (Clap)</span>
+    green.on()
+    time.sleep()   <span class="tok-c"># 填入点亮时间</span>
+    green.off()
+    time.sleep(<span class="tok-n">0.6</span>)</code></pre>
+</div><div class="card block-card tone-green-solid"><h3>🎯 动手做</h3>
+<ol>
+<li>在 <code>time.sleep()</code> 括号中填入测试时间（如 0.1）；  </li>
+<li>按 <strong>F5</strong> 运行代码；  </li>
+<li>观察灯光节拍：<strong>红灯闪、红灯闪、绿灯闪！</strong>  </li>
+</ol></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p14" data-slide="14" data-total="15" data-layout="cards-3" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>实验 5 · 变式挑战：只调 sleep，全班卡点合奏！</h1><p class="kicker">纯调延时</p></header>
+<div class="slide-body"><div class="card block-card tone-blue"><h3>🛠️ 变式 1：跟着音乐调节奏</h3>
+<p>老师在讲台播放《We Will Rock You》：<br>
+· <strong>灯比歌快了？</strong> 把 <code>sleep()</code> 稍微改大<br>
+· <strong>灯比歌慢了？</strong> 把 <code>sleep()</code> 稍微改小<br>
+<strong>只改数字</strong>，调到与原曲鼓点分毫不差！</p></div><div class="card block-card tone-amber"><h3>🛠️ 变式 2：双人手动卡点打碟</h3>
+<p>改写代码成纯手动节拍器：<br>
+· 组员 A 摸 27 号线 ➔ 触发红灯 <strong>“咚”</strong><br>
+· 组员 B 按 BOOT 键 ➔ 触发绿灯 <strong>“啪！”</strong><br>
+听着现场音乐，两人默契配合亲手打节拍！</p></div><div class="card block-card tone-slate"><h3>💡 规律总结</h3>
+<p>· 没有任何多余语法，纯靠 <code>time.sleep()</code> 掌控时间<br>
+· 代码里的每一毫秒，都在精准影响物理世界的节拍<br>
+· 自己一点点调出来的同步卡点，才是真正属于你的成就感！  </p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p15" data-slide="15" data-total="15" data-layout="cards-3" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>终极实操验收标准（1~5分）</h1><p class="kicker">当堂打分</p></header>
+<div class="slide-body"><div class="card block-card tone-green"><h3>5 分（完美达成）</h3>
+<p>· 面包板排线规范整洁<br>
+· 独立完成单灯、按键、触摸实验<br>
+· <strong>双灯变式（爆闪/航行灯）成功通关</strong><br>
+· <strong>只靠调 sleep 成功对齐 We Will Rock You 鼓点！</strong>  </p></div><div class="card block-card tone-blue"><h3>4 分（基本达标）</h3>
+<p>· 成功点亮单灯与双灯<br>
+· 跑通按键或触摸其中一项<br>
+· 完成基础“咚咚啪”代码，但未微调卡点  </p></div><div class="card block-card tone-amber"><h3>1~3 分（未完成）</h3>
+<p>· 正负极插反或电阻同排短路<br>
+· 库文件未正确保存至单片机<br>
+· 需小组长现场协助纠错复测  </p></div></div>
+<div class="slide-media"></div>
+</section>
+<nav class="hud" aria-label="翻页">
+  <button type="button" class="hud-btn" data-act="prev" aria-label="上一页">‹</button>
+  <span class="hud-page" aria-live="polite">1 / 15</span>
+  <button type="button" class="hud-btn" data-act="next" aria-label="下一页">›</button>
+  <button type="button" class="hud-btn" data-act="overview" aria-label="总览">▦</button>
+  <button type="button" class="hud-btn" data-act="fullscreen" aria-label="全屏">⛶</button>
+</nav>
+</div>
+</div>
+<script>
+(function () {
+  window.__SLIDE_COMPONENTS = window.__SLIDE_COMPONENTS || {};
+
+  const NS = "slide-fill-blank:v1";
+  const NOTE_DEFAULT = "打字内容只存在本机浏览器，不提交";
+
+  function escapeHtml(s) {
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  // 只认 **加粗**，其余一律当纯文本转义
+  function inline(text) {
+    return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  }
+
+  // localStorage 可能被隐私模式禁用：探一次，不可用就静默降级为「不存储」
+  function openStore() {
+    try {
+      const ls = window.localStorage;
+      const probe = NS + ":probe";
+      ls.setItem(probe, "1");
+      ls.removeItem(probe);
+      return ls;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function mount(root, payload) {
+    const items = Array.isArray(payload.items) ? payload.items : [];
+    if (!items.length) {
+      root.textContent = "演示数据坏了";
+      console.error("fill-blank missing items", payload);
+      return null;
+    }
+    const cols = Math.min(3, Math.max(1, parseInt(payload.columns, 10) || 2));
+    const store = openStore();
+    const slide = root.closest(".slide");
+    const page = slide && slide.id ? slide.id : "p0";
+    const space = String(payload.storage || document.title || "deck");
+    const prefix = NS + ":" + space + ":" + page + ":";
+
+    root.classList.remove("demo");
+    root.classList.add("fill-blank");
+    root.setAttribute("data-cols", String(cols));
+    root.innerHTML = "";
+
+    // 顶部一行小字：说明只存本机 + 一键清空本页
+    const bar = document.createElement("div");
+    bar.className = "fill-blank-bar";
+    const tip = document.createElement("span");
+    tip.className = "fill-blank-tip";
+    tip.textContent = String(payload.note || NOTE_DEFAULT);
+    bar.appendChild(tip);
+    const reset = document.createElement("button");
+    reset.type = "button";
+    reset.className = "fill-blank-reset";
+    reset.textContent = "清空本页";
+    bar.appendChild(reset);
+    root.appendChild(bar);
+
+    const grid = document.createElement("div");
+    grid.className = "fill-blank-grid";
+    root.appendChild(grid);
+
+    const fields = [];
+
+    items.forEach(function (item, i) {
+      const key = prefix + String(item.id || "b" + (i + 1));
+
+      const card = document.createElement("article");
+      card.className = "fill-blank-item";
+      card.setAttribute("data-filled", "false");
+
+      const head = document.createElement("header");
+      head.className = "fill-blank-head";
+      if (item.tag) {
+        const tag = document.createElement("span");
+        tag.className = "fill-blank-tag";
+        tag.textContent = String(item.tag);
+        head.appendChild(tag);
+      }
+      const state = document.createElement("span");
+      state.className = "fill-blank-state";
+      state.textContent = "已保存";
+      state.title = "内容存在本机浏览器里，刷新或重开还在";
+      head.appendChild(state);
+
+      const q = document.createElement("p");
+      q.className = "fill-blank-q";
+      q.innerHTML = inline(item.q || "填空题 " + (i + 1));
+
+      const area = document.createElement("textarea");
+      area.className = "fill-blank-input";
+      area.setAttribute("spellcheck", "false");
+      area.setAttribute("aria-label", String(item.q || "填空题 " + (i + 1)).replace(/\*\*/g, ""));
+      if (item.placeholder) area.placeholder = String(item.placeholder);
+
+      // 打字时把按键留在输入框里，别交给翻页引擎
+      area.addEventListener("keydown", function (ev) {
+        const k = ev.key;
+        if (
+          k === " " ||
+          k === "Spacebar" ||
+          k === "ArrowLeft" ||
+          k === "ArrowRight" ||
+          k === "ArrowUp" ||
+          k === "ArrowDown" ||
+          k === "PageUp" ||
+          k === "PageDown" ||
+          k === "Home" ||
+          k === "End"
+        ) {
+          ev.stopPropagation();
+        }
+      });
+
+      let timer = null;
+      function save() {
+        if (timer) {
+          clearTimeout(timer);
+          timer = null;
+        }
+        if (!store) return;
+        try {
+          if (area.value) store.setItem(key, area.value);
+          else store.removeItem(key);
+        } catch (e) {
+          /* 配额满或被禁用：不打断课堂 */
+        }
+      }
+
+      area.addEventListener("input", function () {
+        card.setAttribute("data-filled", area.value ? "true" : "false");
+        if (timer) clearTimeout(timer);
+        timer = setTimeout(save, 250);
+      });
+      area.addEventListener("blur", save);
+
+      if (store) {
+        try {
+          const saved = store.getItem(key);
+          if (saved) {
+            area.value = saved;
+            card.setAttribute("data-filled", "true");
+          }
+        } catch (e) {
+          /* 读不到就算了 */
+        }
+      }
+
+      card.append(head, q, area);
+      grid.appendChild(card);
+      fields.push({ key: key, area: area, card: card, save: save });
+    });
+
+    reset.addEventListener("click", function () {
+      const filled = fields.filter(function (f) {
+        return f.area.value;
+      });
+      if (filled.length && !window.confirm("清空本页全部填写内容？清掉就找不回来了。")) return;
+      fields.forEach(function (f) {
+        f.area.value = "";
+        f.card.setAttribute("data-filled", "false");
+        f.save();
+      });
+    });
+
+    return {
+      leave: function () {
+        fields.forEach(function (f) {
+          f.save();
+        });
+      },
+    };
+  }
+
+  window.__SLIDE_COMPONENTS["fill-blank"] = mount;
+})();
+
+(function () {
+  const deck = document.querySelector(".deck");
+  if (!deck) return;
+
+  const slides = Array.from(document.querySelectorAll(".slide"));
+  const total = slides.length;
+  const staticMode =
+    new URLSearchParams(location.search).has("static") ||
+    matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const registry = window.__SLIDE_COMPONENTS || {};
+  const padPage = document.body.classList.contains("theme-replica");
+  const formatPage = (n) => (padPage ? String(n).padStart(2, "0") : String(n));
+  const demos = [];
+
+  function mountAll() {
+    document.querySelectorAll("[data-demo]").forEach((el) => {
+      const name = el.getAttribute("data-demo");
+      const fn = registry[name];
+      let payload = {};
+      try {
+        payload = JSON.parse(el.getAttribute("data-payload") || "{}");
+      } catch (e) {
+        el.textContent = "演示数据坏了";
+        console.error(e);
+        return;
+      }
+      if (!fn) {
+        el.textContent =
+          "未知组件 " + name + "（可用：" + Object.keys(registry).join(", ") + "）";
+        return;
+      }
+      const ctl = fn(el, payload);
+      if (ctl) demos.push({ el, ctl });
+    });
+  }
+
+  function bindCopyButtons() {
+    document.querySelectorAll(".copy-btn").forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        copyCode(btn);
+      });
+    });
+  }
+
+  function copyCode(btn) {
+    const wrapper = btn.closest(".code-wrapper");
+    const codeEl = wrapper && wrapper.querySelector("code");
+    if (!codeEl) return;
+    const text = codeEl.innerText;
+    const done = () => {
+      const original = btn.textContent;
+      btn.classList.add("copied");
+      btn.textContent = "✓ 已复制";
+      setTimeout(() => {
+        btn.classList.remove("copied");
+        btn.textContent = original;
+      }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+    done();
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  function callsOn(slide, method) {
+    demos
+      .filter((d) => slide.contains(d.el))
+      .forEach((d) => d.ctl && typeof d.ctl[method] === "function" && d.ctl[method]());
+  }
+
+  function currentIndex() {
+    const cur = slides.findIndex((s) => s.classList.contains("is-current"));
+    return cur < 0 ? 0 : cur;
+  }
+
+  function enterSlide(idx) {
+    slides.forEach((s, i) => {
+      if (i !== idx) callsOn(s, "leave");
+    });
+    callsOn(slides[idx], "enter");
+  }
+
+  function go(n) {
+    const idx = Math.max(0, Math.min(total - 1, n));
+    slides.forEach((s, i) => s.classList.toggle("is-current", i === idx));
+    location.hash = "#" + (idx + 1);
+    const page = document.querySelector(".hud-page");
+    if (page) page.textContent = formatPage(idx + 1) + " / " + formatPage(total);
+    enterSlide(idx);
+  }
+
+  function forward() {
+    if (currentIndex() < total - 1) go(currentIndex() + 1);
+  }
+
+  function back() {
+    if (currentIndex() > 0) go(currentIndex() - 1);
+  }
+
+  function applyStatic() {
+    document.querySelectorAll(".fragment").forEach((f) => f.classList.add("is-shown"));
+    slides.forEach((s) => callsOn(s, "staticOn"));
+  }
+
+  function toggleOverview() {
+    document.body.classList.toggle("is-overview");
+    if (document.body.classList.contains("is-overview")) {
+      slides.forEach((s) => callsOn(s, "leave"));
+    } else {
+      enterSlide(currentIndex());
+    }
+  }
+
+  function fromHash() {
+    const n = parseInt(location.hash.replace(/^#/, ""), 10);
+    const idx = n >= 1 && n <= total ? n - 1 : 0;
+    const current = document.querySelector(".slide.is-current");
+    if (current && idx === currentIndex()) return;
+    go(idx);
+  }
+
+  mountAll();
+  bindCopyButtons();
+  if (staticMode) applyStatic();
+  fromHash();
+
+  const hud = document.querySelector(".hud");
+  if (hud) {
+    hud.addEventListener('click', (ev) => {
+      const btn = ev.target.closest("button");
+      if (!btn) return;
+      const act = btn.getAttribute("data-act");
+      if (act === "prev") back();
+      else if (act === "next") forward();
+      else if (act === "overview") toggleOverview();
+      else if (act === "fullscreen") toggleFullscreen();
+    });
+  }
+
+  document.addEventListener('click', (ev) => {
+    if (!document.body.classList.contains("is-overview")) return;
+    const s = ev.target.closest(".slide");
+    if (!s) return;
+    document.body.classList.remove("is-overview");
+    go(slides.indexOf(s));
+  });
+
+  function isEditable(target) {
+    if (!target || typeof target.closest !== "function") return false;
+    return !!target.closest(
+      "input, textarea, select, [contenteditable=''], [contenteditable='true']"
+    );
+  }
+
+  document.addEventListener("keydown", (ev) => {
+    // 焦点在输入框 / 打字区时，按键归输入框（否则打空格会把课件翻页）
+    if (isEditable(ev.target) && !document.body.classList.contains("is-overview")) return;
+    if (ev.key === "o" || ev.key === "O") {
+      toggleOverview();
+      return;
+    }
+    if (ev.key === "Escape" && document.body.classList.contains("is-overview")) {
+      toggleOverview();
+      return;
+    }
+    if (ev.key === "f" || ev.key === "F") {
+      ev.preventDefault();
+      toggleFullscreen();
+      return;
+    }
+    if (document.body.classList.contains("is-overview")) return;
+    if (
+      ev.key === "ArrowRight" ||
+      ev.key === " " ||
+      ev.key === "Spacebar" ||
+      ev.key === "PageDown"
+    ) {
+      ev.preventDefault();
+      forward();
+    } else if (ev.key === "ArrowLeft" || ev.key === "PageUp") {
+      ev.preventDefault();
+      back();
+    } else if (ev.key === "Home") {
+      ev.preventDefault();
+      go(0);
+    } else if (ev.key === "End") {
+      ev.preventDefault();
+      go(total - 1);
+    }
+  });
+
+  window.addEventListener("hashchange", fromHash);
+})();
+
+</script>
+</body>
+</html>

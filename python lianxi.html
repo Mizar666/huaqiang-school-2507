@@ -1,0 +1,407 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Python 编程笔记 · 选择页面</title>
+  <style>
+    /* 全局重置 & 基础风格 */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(145deg, #0b0b10 0%, #14141f 100%);
+      color: #ddd;
+      line-height: 1.6;
+      min-height: 100vh;
+      padding: 0 24px 80px 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .main-container {
+      width: 100%;
+      max-width: 1280px;
+      margin: 0 auto;
+      position: relative;
+    }
+
+    /* 右上角搜索区域 */
+    .search-corner {
+      position: absolute;
+      top: 28px;
+      right: 24px;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      background: #1a1a2a;
+      border-radius: 40px;
+      padding: 2px 2px 2px 18px;
+      border: 1px solid #2f354a;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+      transition: border 0.2s, box-shadow 0.2s;
+    }
+
+    .search-corner:focus-within {
+      border-color: #4da6ff;
+      box-shadow: 0 0 0 2px rgba(77, 166, 255, 0.2);
+    }
+
+    .search-corner input {
+      background: transparent;
+      border: none;
+      outline: none;
+      color: #eee;
+      font-size: 0.95rem;
+      padding: 10px 6px 10px 0;
+      width: 220px;
+      caret-color: #4da6ff;
+    }
+
+    .search-corner input::placeholder {
+      color: #6b7280;
+      font-weight: 300;
+      letter-spacing: 0.3px;
+    }
+
+    .search-corner .search-icon {
+      color: #6b7280;
+      font-size: 1.1rem;
+      margin-right: 6px;
+      user-select: none;
+    }
+
+    /* 标题区域 */
+    .title-wrapper {
+      text-align: center;
+      padding: 60px 0 10px 0;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .page-title {
+      font-size: 3rem;
+      font-weight: 700;
+      color: #ffffff;
+      letter-spacing: 1px;
+      text-shadow: 0 2px 12px rgba(77, 166, 255, 0.3);
+      line-height: 1.3;
+      word-break: break-word;
+    }
+
+    /* 时间表 — 三号字，只保留时间内容 */
+    .time-schedule {
+      text-align: center;
+      color: #ffffff;
+      font-size: 1.3rem;
+      margin-top: 12px;
+      margin-bottom: 18px;
+      font-family: 'Courier New', monospace;
+      letter-spacing: 1.5px;
+      background: rgba(10, 10, 18, 0.6);
+      display: inline-block;
+      padding: 6px 28px;
+      border-radius: 40px;
+      backdrop-filter: blur(4px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    .time-schedule .time-value {
+      font-weight: 600;
+      color: #ffffff;
+      text-shadow: 0 0 10px rgba(77, 166, 255, 0.5);
+    }
+
+    /* 选项网格 */
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 24px 28px;
+      margin: 28px 0 40px 0;
+      width: 100%;
+    }
+
+    /* 选项卡片 — 现在是 <a> 标签，内部文字空白 */
+    .note-item {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      min-height: 90px;
+      padding: 18px 10px;
+      background: #121222;
+      border-radius: 16px;
+      color: #ddd;
+      font-size: 1.1rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.25s ease;
+      border: 1px solid #222840;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      word-break: break-word;
+      cursor: pointer;
+      line-height: 1.4;
+    }
+
+    .note-item:hover {
+      background: #1c2744;
+      color: #4da6ff;
+      transform: translateY(-5px);
+      box-shadow: 0 12px 28px rgba(77, 166, 255, 0.25);
+      border-color: #3f5a8a;
+    }
+
+    .note-item.hidden {
+      display: none;
+    }
+
+    /* 底部文字 */
+    .footer-text {
+      text-align: center;
+      color: #ff3b3b;
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      margin-top: 40px;
+      padding: 20px 0 10px 0;
+      width: 100%;
+      text-shadow: 0 0 16px rgba(255, 59, 59, 0.5);
+      border-top: 1px solid rgba(255, 59, 59, 0.2);
+    }
+
+    /* 响应式 */
+    @media (max-width: 880px) {
+      .grid-container {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 18px;
+      }
+      .page-title {
+        font-size: 2.2rem;
+      }
+      .time-schedule {
+        font-size: 1.0rem;
+        padding: 5px 18px;
+      }
+      .search-corner {
+        top: 16px;
+        right: 12px;
+      }
+      .search-corner input {
+        width: 140px;
+      }
+      body {
+        padding: 0 16px 60px 16px;
+      }
+      .title-wrapper {
+        padding-top: 70px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      .grid-container {
+        grid-template-columns: 1fr;
+      }
+      .page-title {
+        font-size: 1.8rem;
+      }
+      .time-schedule {
+        font-size: 0.9rem;
+        padding: 4px 14px;
+        letter-spacing: 0.5px;
+      }
+      .search-corner {
+        position: relative;
+        top: 0;
+        right: 0;
+        margin: 16px 0 0 auto;
+        width: fit-content;
+      }
+      .search-corner input {
+        width: 150px;
+      }
+      .title-wrapper {
+        padding-top: 20px;
+      }
+    }
+
+    /* 无结果提示 */
+    .no-result-message {
+      display: none;
+      text-align: center;
+      color: #aaa;
+      font-size: 1.2rem;
+      padding: 40px 0;
+      width: 100%;
+      grid-column: 1 / -1;
+    }
+
+    .no-result-message.show {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="main-container">
+    <!-- 搜索框 -->
+    <div class="search-corner">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="输入关键词搜索 (回车)" autocomplete="off">
+    </div>
+
+    <!-- 标题 + 时间表 -->
+    <div class="title-wrapper">
+      <h1 class="page-title">Python 编程笔记 · 选择页面</h1>
+      <div class="time-schedule">
+        <span class="time-value" id="liveTime">21世纪:2026:03:27:14:30:45:123</span>
+      </div>
+    </div>
+
+    <!-- 网格：10行 × 4列 = 40 个链接选项，文字空白 -->
+    <div class="grid-container" id="gridContainer">
+      <!-- 行 1 -->
+      <a href="https://9月7日.html" class="note-item" data-keywords="2 运算符 表达式 算术"></a>
+      <a href="#" class="note-item" data-keywords="2 运算符 表达式 算术"></a>
+      <a href="#" class="note-item" data-keywords="3 条件 分支 if else"></a>
+      <a href="#" class="note-item" data-keywords="4 循环 for while"></a>
+      
+      <!-- 行 2 -->
+      <a href="#" class="note-item" data-keywords="5 列表 list 增删改查"></a>
+      <a href="#" class="note-item" data-keywords="6 元组 tuple 不可变"></a>
+      <a href="#" class="note-item" data-keywords="7 字典 dict 键值对"></a>
+      <a href="#" class="note-item" data-keywords="8 集合 set 去重"></a>
+      
+      <!-- 行 3 -->
+      <a href="#" class="note-item" data-keywords="9 字符串 格式化 切片"></a>
+      <a href="#" class="note-item" data-keywords="10 函数 def 参数 返回值"></a>
+      <a href="#" class="note-item" data-keywords="11 作用域 局部 全局 变量"></a>
+      <a href="#" class="note-item" data-keywords="12 递归 阶乘 斐波那契"></a>
+      
+      <!-- 行 4 -->
+      <a href="#" class="note-item" data-keywords="13 模块 import 包"></a>
+      <a href="#" class="note-item" data-keywords="14 文件 读写 open"></a>
+      <a href="#" class="note-item" data-keywords="15 异常 处理 try except"></a>
+      <a href="#" class="note-item" data-keywords="16 面向对象 类 class 对象"></a>
+      
+      <!-- 行 5 -->
+      <a href="#" class="note-item" data-keywords="17 继承 多态 封装"></a>
+      <a href="#" class="note-item" data-keywords="18 魔法方法 __init__ str"></a>
+      <a href="#" class="note-item" data-keywords="19 迭代器 生成器 yield"></a>
+      <a href="#" class="note-item" data-keywords="20 装饰器 函数 高阶"></a>
+      
+      <!-- 行 6 -->
+      <a href="#" class="note-item" data-keywords="21 正则 表达式 re 匹配"></a>
+      <a href="#" class="note-item" data-keywords="22 日期 时间 datetime"></a>
+      <a href="#" class="note-item" data-keywords="23 数学 math 模块 计算"></a>
+      <a href="#" class="note-item" data-keywords="24 随机 random 模块"></a>
+      
+      <!-- 行 7 -->
+      <a href="#" class="note-item" data-keywords="25 JSON 序列化 反序列化"></a>
+      <a href="#" class="note-item" data-keywords="26 网络 请求 requests"></a>
+      <a href="#" class="note-item" data-keywords="27 多线程 threading"></a>
+      <a href="#" class="note-item" data-keywords="28 多进程 multiprocessing"></a>
+      
+      <!-- 行 8 -->
+      <a href="#" class="note-item" data-keywords="29 异步 async await"></a>
+      <a href="#" class="note-item" data-keywords="30 数据库 sqlite 连接"></a>
+      <a href="#" class="note-item" data-keywords="31 虚拟环境 venv pip"></a>
+      <a href="#" class="note-item" data-keywords="32 单元测试 unittest"></a>
+      
+      <!-- 行 9 -->
+      <a href="#" class="note-item" data-keywords="33 算法 排序 冒泡 快速"></a>
+      <a href="#" class="note-item" data-keywords="34 查找 二分 搜索"></a>
+      <a href="#" class="note-item" data-keywords="35 数据结构 栈 队列"></a>
+      <a href="#" class="note-item" data-keywords="36 链表 单链表 节点"></a>
+      
+      <!-- 行 10 -->
+      <a href="#" class="note-item" data-keywords="37 树 二叉树 遍历"></a>
+      <a href="#" class="note-item" data-keywords="38 图 深度 广度 搜索"></a>
+      <a href="#" class="note-item" data-keywords="39 动态规划 DP 背包"></a>
+      <a href="#" class="note-item" data-keywords="40 综合项目 实战 案例"></a>
+      
+      <!-- 无结果提示 -->
+      <div class="no-result-message" id="noResultMessage">😕 没有找到匹配的选项</div>
+    </div>
+
+    <!-- 底部鲜红文字 -->
+    <div class="footer-text">请输入文本</div>
+  </div>
+
+  <script>
+    (function() {
+      // 实时时间
+      const timeElement = document.getElementById('liveTime');
+      
+      function updateTime() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const century = Math.floor(year / 100) + 1;
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        const milliseconds = String(now.getMilliseconds()).padStart(3, '0');
+        
+        timeElement.textContent = `${century}世纪:${year}:${month}:${day}:${hours}:${minutes}:${seconds}:${milliseconds}`;
+      }
+      
+      updateTime();
+      setInterval(updateTime, 50);
+
+      // 搜索过滤
+      const searchInput = document.getElementById('searchInput');
+      const noResultMsg = document.getElementById('noResultMessage');
+      const allItems = Array.from(document.querySelectorAll('.note-item'));
+
+      function filterItems(keyword) {
+        let visibleCount = 0;
+        const trimmedKeyword = keyword.trim().toLowerCase();
+        
+        if (trimmedKeyword === '') {
+          allItems.forEach(item => item.classList.remove('hidden'));
+          visibleCount = allItems.length;
+        } else {
+          allItems.forEach(item => {
+            const keywordsAttr = item.getAttribute('data-keywords') || '';
+            // 由于内容为空，只根据 data-keywords 搜索
+            const searchSource = keywordsAttr.toLowerCase();
+            
+            if (searchSource.includes(trimmedKeyword)) {
+              item.classList.remove('hidden');
+              visibleCount++;
+            } else {
+              item.classList.add('hidden');
+            }
+          });
+        }
+
+        if (visibleCount === 0 && trimmedKeyword !== '') {
+          noResultMsg.classList.add('show');
+        } else {
+          noResultMsg.classList.remove('show');
+        }
+      }
+
+      searchInput.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          const currentValue = searchInput.value.trim();
+          
+          if (currentValue !== '') {
+            filterItems(currentValue);
+            searchInput.value = '';
+          } else {
+            filterItems('');
+          }
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

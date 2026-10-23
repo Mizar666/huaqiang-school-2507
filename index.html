@@ -55,7 +55,7 @@
         #boot-screen {
             position: relative; width: 100%; height: 100%; max-width: 1200px; padding: 40px;
             display: flex; flex-direction: column; justify-content: space-between;
-            transition: opacity 1.5s ease-in-out;
+            transition: opacity 1s ease-in-out;
         }
 
         .header { font-family: sans-serif; font-weight: 900; letter-spacing: 2px; }
@@ -63,14 +63,14 @@
         .header p { font-size: 12px; color: var(--text-dim); letter-spacing: 1px; }
         
         .progress-bar { margin-top: 20px; width: 200px; height: 2px; background: var(--border-color); display: flex; }
-        .progress-bar div { height: 100%; background: var(--accent-color); width: 0%; transition: width 0.4s; }
+        .progress-bar div { height: 100%; background: var(--accent-color); width: 0%; transition: width 0.3s; }
         .progress-text { font-size: 10px; color: var(--accent-color); margin-top: 5px; }
 
         /* 中间核心内容区 */
         .center-content {
             text-align: center; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 100%; max-width: 800px; opacity: 0; visibility: hidden; pointer-events: none;
-            transition: opacity 1.5s ease-in-out, visibility 1.5s;
+            transition: opacity 1s ease-in-out, visibility 1s;
         }
         .center-content.show { opacity: 1; visibility: visible; pointer-events: auto; }
         
@@ -121,15 +121,16 @@
         #welcome-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: var(--bg-color); display: flex; justify-content: center; align-items: center;
-            z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 1.5s ease-in-out;
+            z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 1s ease-in-out;
         }
         #welcome-overlay h1 { font-size: 40px; letter-spacing: 5px; font-weight: bold; color: var(--text-color); }
 
-        /* 👇 主站容器 👇 */
+        /* 👇 主站容器（修复加载问题） 👇 */
         #main-site {
-            display: none; opacity: 0; transition: opacity 4s ease-in-out;
-            width: 100%; height: 100vh; background: var(--bg-color); color: var(--text-color);
-            overflow-y: auto; overflow-x: hidden; position: relative;
+            display: none; opacity: 0; transition: opacity 3s ease-in-out;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100vh; 
+            background: var(--bg-color); color: var(--text-color);
+            overflow-y: auto; overflow-x: hidden; z-index: 5000;
         }
 
         /* --- 你的备忘录网站样式（已强制适配黑白主题） --- */
@@ -334,10 +335,28 @@
     <script>
         let currentStep = 1;
         let globalUser = null;
-        let stepTimeout;
         
-        // 强行激活浏览器的看门狗，防止定时器休眠
-        let keepAwake = setInterval(() => { document.title = document.title; }, 1000);
+        // 🚀 核心重写：用 requestAnimationFrame 来管理动画定时，绝不被 Edge 休眠
+        let startTime = 0;
+        let targetTime = 0;
+        let animFrameId = null;
+        let currentAction = null;
+
+        function startTimer(duration, action) {
+            cancelAnimationFrame(animFrameId);
+            startTime = performance.now();
+            targetTime = duration;
+            currentAction = action;
+            
+            function loop(now) {
+                if (now - startTime >= targetTime) {
+                    if (currentAction) currentAction();
+                } else {
+                    animFrameId = requestAnimationFrame(loop);
+                }
+            }
+            animFrameId = requestAnimationFrame(loop);
+        }
 
         window.onload = function() {
             if (localStorage.getItem('theme') === 'dark') {
@@ -369,32 +388,35 @@
         function showStep(step) {
             currentStep = step;
             document.querySelectorAll('.center-content').forEach(el => el.classList.remove('show'));
-            clearTimeout(stepTimeout);
             
-            stepTimeout = setTimeout(() => {
+            // 固定的淡出到淡入间隔
+            startTimer(500, () => {
                 const target = document.getElementById('step-' + step);
                 if (target) {
                     target.classList.add('show');
                     updateProgress(step);
-                    if (step === 2) setTimeout(() => document.getElementById('input-id').focus(), 500);
+                    if (step === 2) {
+                        startTimer(500, () => document.getElementById('input-id').focus());
+                    }
                 }
-            }, 500); // 强制 0.5秒 间隔，杜绝卡死
+            });
         }
 
         function nextStep(step) {
             showStep(step);
+            
             if (step === 3) {
-                setTimeout(() => { showStep(4); startCodeStream(); }, 2000);
+                startTimer(2000, () => { showStep(4); startCodeStream(); });
             } else if (step === 4) {
-                setTimeout(() => { showStep(5); stopCodeStream(); }, 2000);
+                startTimer(2000, () => { showStep(5); stopCodeStream(); });
             } else if (step === 5) {
-                setTimeout(() => { 
+                startTimer(2500, () => { 
                     document.getElementById('boot-screen').style.opacity = 0;
-                    setTimeout(() => { 
+                    startTimer(1000, () => { 
                         document.getElementById('boot-screen').style.display = 'none'; 
                         showWelcomeAndMain(); 
-                    }, 1500);
-                }, 2500);
+                    });
+                });
             }
         }
 
@@ -463,23 +485,25 @@
             welcomeText.innerText = `欢迎，${globalUser.name}`;
             welcomeOverlay.style.opacity = 1; 
             
-            setTimeout(() => {
+            startTimer(2500, () => {
                 welcomeOverlay.style.opacity = 0; 
-                setTimeout(() => {
+                startTimer(1000, () => {
                     welcomeOverlay.style.display = 'none';
+                    
+                    // 强力刷新主站显示状态
                     mainSite.style.display = 'block';
                     logoutBtn.style.display = 'block';
-                    
-                    // 解决滚动卡死问题
                     window.scrollTo(0,0);
                     mainSite.scrollTop = 0;
-                    
                     void mainSite.offsetWidth;
-                    mainSite.style.opacity = 1; 
                     
-                    fadeOutBGM(3); 
-                }, 1500);
-            }, 2500);
+                    // 给主站加个短延迟，确保前面的 DOM 已经彻底消失
+                    startTimer(50, () => {
+                        mainSite.style.opacity = 1; 
+                        fadeOutBGM(3); 
+                    });
+                });
+            });
         }
 
         function logout() {

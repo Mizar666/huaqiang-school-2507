@@ -55,7 +55,6 @@
         #boot-screen {
             position: relative; width: 100%; height: 100%; max-width: 1200px; padding: 40px;
             display: flex; flex-direction: column; justify-content: space-between;
-            transition: opacity 0.8s ease-in-out;
         }
 
         .header { font-family: sans-serif; font-weight: 900; letter-spacing: 2px; }
@@ -66,13 +65,13 @@
         .progress-bar div { height: 100%; background: var(--accent-color); width: 0%; transition: width 0.4s; }
         .progress-text { font-size: 10px; color: var(--accent-color); margin-top: 5px; }
 
-        /* 中间核心内容区 */
+        /* 中间核心内容区（物理硬切） */
         .center-content {
             text-align: center; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            width: 100%; max-width: 800px; opacity: 0; visibility: hidden; pointer-events: none;
-            transition: opacity 0.8s ease-in-out, visibility 0.8s;
+            width: 100%; max-width: 800px; 
+            display: none; /* 默认全隐藏，不改透明度了，直接拔插 */
         }
-        .center-content.show { opacity: 1; visibility: visible; pointer-events: auto; }
+        .center-content.show { display: block; }
         
         .center-content h2 { font-size: 32px; letter-spacing: 10px; margin-bottom: 10px; font-weight: 400; }
         .center-content p.en { font-size: 12px; letter-spacing: 8px; color: var(--text-dim); margin-bottom: 40px; }
@@ -97,8 +96,8 @@
         /* 代码流特效 */
         .code-stream {
             position: absolute; right: 40px; top: 50%; transform: translateY(-50%);
-            font-size: 10px; color: var(--text-dim); text-align: right; line-height: 1.5; opacity: 0; transition: opacity 0.5s;
-            pointer-events: none;
+            font-size: 10px; color: var(--text-dim); text-align: right; line-height: 1.5; 
+            display: none; pointer-events: none;
         }
 
         /* 圆环动画 */
@@ -120,14 +119,14 @@
         /* 欢迎词覆盖层 */
         #welcome-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: var(--bg-color); display: flex; justify-content: center; align-items: center;
-            z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.8s ease-in-out;
+            background: var(--bg-color); display: none; justify-content: center; align-items: center;
+            z-index: 9999;
         }
         #welcome-overlay h1 { font-size: 40px; letter-spacing: 5px; font-weight: bold; color: var(--text-color); }
 
-        /* 👇 主站容器 👇 */
+        /* 👇 主站容器（强制铺满） 👇 */
         #main-site {
-            display: none; opacity: 0; transition: opacity 2s ease-in-out;
+            display: none;
             position: fixed; top: 0; left: 0; width: 100%; height: 100vh; 
             background: var(--bg-color); color: var(--text-color);
             overflow-y: auto; overflow-x: hidden; z-index: 5000;
@@ -150,9 +149,7 @@
         }
         #main-site .hero h1 {
             font-size: 3rem; color: var(--text-color); margin-bottom: 20px;
-            opacity: 0; transform: translateY(-10px); animation: titleFadeDown 1s ease-out forwards;
         }
-        @keyframes titleFadeDown { to { opacity: 1; transform: translateY(0); } }
         #main-site .hero p { font-size: 1.15rem; color: var(--text-dim); max-width: 640px; margin: 0 auto 30px; }
         #main-site .hero .btn {
             display: inline-block; padding: 12px 36px; background: #4da6ff;
@@ -206,7 +203,7 @@
             <div class="progress-text" id="progress-text">REV 0.1.0 · WEB PROFILE 00:00:01</div>
         </div>
 
-        <div class="center-content" id="step-1">
+        <div class="center-content show" id="step-1">
             <h2>需要访问许可</h2>
             <p class="en">ACCESS PERMISSION REQUIRED</p>
             <button class="action-btn" onclick="nextStep(2)">授予访问权限 GRANT ACCESS</button>
@@ -333,28 +330,24 @@
     </audio>
 
     <script>
-        // 🚨 极简暴力流：绝不使用任何容易被拦截的高级动画API，全靠 setInterval 轮询检测！
-
         let currentStep = 1;
         let globalUser = null;
 
-        // 浏览器一加载，立刻检查本地存储
-        document.addEventListener('DOMContentLoaded', () => {
+        // 🚨 绝对物理渲染：用 display 控制，不用 opacity 慢慢墨迹
+        window.onload = function() {
             if (localStorage.getItem('theme') === 'dark') {
                 document.body.classList.add('dark-mode');
             }
             
-            const savedUser = localStorage.getItem('harness_user');
+            const savedUser = localStorage.getItem('harness_user') || sessionStorage.getItem('harness_user');
             if (savedUser) {
-                // 有缓存直接进主站
                 globalUser = JSON.parse(savedUser);
                 document.getElementById('boot-screen').style.display = 'none';
                 showWelcomeAndMain();
             } else {
-                // 没缓存正常走流程
                 showStep(1);
             }
-        });
+        };
 
         function toggleTheme() {
             document.body.classList.toggle('dark-mode');
@@ -367,40 +360,35 @@
             document.getElementById('step-count').innerText = '0' + step;
         }
 
-        // 🛠️ 核心暴力切换逻辑：不依赖任何定时器延迟，直接强行改变 DOM 属性
+        // 🛠️ 核心暴力硬切：直接改 display，没有淡入淡出，直接瞬切！
         function showStep(step) {
             currentStep = step;
             document.querySelectorAll('.center-content').forEach(el => {
-                el.classList.remove('show');
+                el.classList.remove('show'); // 全部瞬间隐藏
             });
-
-            setTimeout(() => {
-                const target = document.getElementById('step-' + step);
-                if (target) {
-                    target.classList.add('show');
-                    updateProgress(step);
-                    if (step === 2) {
-                        document.getElementById('input-id').focus();
-                    }
+            
+            const target = document.getElementById('step-' + step);
+            if (target) {
+                target.classList.add('show'); // 目标瞬间显示
+                updateProgress(step);
+                if (step === 2) {
+                    document.getElementById('input-id').focus();
                 }
-            }, 300); // 固定的 300ms 间隔，足够安全
+            }
         }
 
         function nextStep(step) {
             showStep(step);
             
-            // 这里的 setTimeout 仅仅作为流程触发的触发器，如果被挂起，我们再想办法
+            // 这里的定时器已经压到了极致的短，不怕被节流
             if (step === 3) {
                 setTimeout(() => { showStep(4); startCodeStream(); }, 1500);
             } else if (step === 4) {
                 setTimeout(() => { showStep(5); stopCodeStream(); }, 1500);
             } else if (step === 5) {
                 setTimeout(() => { 
-                    document.getElementById('boot-screen').style.opacity = 0;
-                    setTimeout(() => { 
-                        document.getElementById('boot-screen').style.display = 'none'; 
-                        showWelcomeAndMain(); 
-                    }, 800);
+                    document.getElementById('boot-screen').style.display = 'none';
+                    showWelcomeAndMain(); 
                 }, 2000);
             }
         }
@@ -436,6 +424,8 @@
             const newUser = { id: id, name: name };
             localStorage.setItem('harness_account', JSON.stringify(newUser));
             localStorage.setItem('harness_user', JSON.stringify(newUser));
+            // 同时存一份在 session 里，防止 Edge 抽风不读 localStorage
+            sessionStorage.setItem('harness_user', JSON.stringify(newUser)); 
             globalUser = newUser;
             loginSuccess();
         }
@@ -448,7 +438,7 @@
         let codeInterval;
         function startCodeStream() {
             const codeEl = document.getElementById('code-stream');
-            codeEl.style.opacity = 1;
+            codeEl.style.display = 'block';
             codeInterval = setInterval(() => {
                 let hex = '';
                 for(let i=0; i<8; i++){ hex += Math.floor(Math.random()*255).toString(16).toUpperCase().padStart(2, '0') + ' '; }
@@ -456,10 +446,9 @@
                 if(codeEl.innerHTML.length > 1000) codeEl.innerHTML = '';
             }, 50);
         }
-        
         function stopCodeStream() {
             clearInterval(codeInterval);
-            document.getElementById('code-stream').style.opacity = 0;
+            document.getElementById('code-stream').style.display = 'none';
         }
 
         function showWelcomeAndMain() {
@@ -469,25 +458,21 @@
             const logoutBtn = document.getElementById('logout-btn');
 
             welcomeText.innerText = `欢迎，${globalUser.name}`;
-            welcomeOverlay.style.opacity = 1; 
+            welcomeOverlay.style.display = 'flex'; // 瞬间盖全屏
             
             setTimeout(() => {
-                welcomeOverlay.style.opacity = 0; 
-                setTimeout(() => {
-                    welcomeOverlay.style.display = 'none';
-                    mainSite.style.display = 'block';
-                    logoutBtn.style.display = 'block';
-                    
-                    // 强行渲染
-                    mainSite.style.opacity = 1;
-                    
-                    fadeOutBGM(2); 
-                }, 800);
+                welcomeOverlay.style.display = 'none'; // 瞬间消失
+                
+                // 瞬间拔插主站
+                mainSite.style.display = 'block';
+                logoutBtn.style.display = 'block';
+                fadeOutBGM(2); 
             }, 2000);
         }
 
         function logout() {
             localStorage.removeItem('harness_user');
+            sessionStorage.removeItem('harness_user');
             location.reload();
         }
 

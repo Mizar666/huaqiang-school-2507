@@ -43,13 +43,13 @@
 
         /* 主题切换按钮 */
         #theme-toggle {
-            position: absolute;
+            position: fixed; /* 改成 fixed，以免主站滚动时消失 */
             top: 40px;
             right: 40px;
             border: 1px solid var(--text-color);
             color: var(--text-color);
             padding: 5px 15px;
-            background: transparent;
+            background: var(--bg-color); /* 加个背景色防穿透 */
             cursor: pointer;
             font-family: inherit;
             z-index: 10000;
@@ -89,14 +89,14 @@
             width: 100%;
             max-width: 800px;
             opacity: 0;
-            visibility: hidden; /* 彻底解决点击拦截问题 */
-            pointer-events: none; /* 隐形时绝不拦截鼠标 */
+            visibility: hidden; 
+            pointer-events: none; 
             transition: opacity 1.5s ease-in-out, visibility 1.5s;
         }
         .center-content.show { 
             opacity: 1; 
             visibility: visible; 
-            pointer-events: auto; /* 显示时恢复鼠标交互 */
+            pointer-events: auto; 
         }
         
         .center-content h2 { font-size: 32px; letter-spacing: 10px; margin-bottom: 10px; font-weight: 400; transition: color 0.8s; }
@@ -153,27 +153,92 @@
         }
         #welcome-overlay h1 { font-size: 40px; letter-spacing: 5px; font-weight: bold; color: var(--text-color); }
 
-        /* 主站容器（给你对接的坑位） */
+        /* 👇 主站容器及内置网页适配 👇 */
         #main-site {
             display: none; opacity: 0; transition: opacity 4s ease-in-out;
             width: 100%; height: 100vh; background: var(--bg-color); color: var(--text-color);
-            padding: 100px; text-align: center; overflow-y: auto;
+            overflow-y: auto; overflow-x: hidden;
+            position: relative;
         }
-        #main-site h1 { font-size: 50px; font-weight: 900; margin-bottom: 20px; letter-spacing: 5px; }
-        #main-site p { color: var(--text-dim); font-size: 18px; line-height: 2; max-width: 600px; margin: 0 auto; }
+
+        /* 劫持你原本网页的全局样式，防止冲突 */
+        #main-site * { box-sizing: border-box; }
+        #main-site nav {
+            position: sticky; top: 0; width: 100%; background: var(--bg-color);
+            z-index: 100; box-shadow: 0 1px 6px rgba(0,0,0,0.1); transition: background 0.3s;
+            padding: 14px 24px;
+        }
+        #main-site nav .inner {
+            max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between;
+        }
+        #main-site nav .logo { font-size: 1.3rem; font-weight: 700; color: var(--text-color); }
+        #main-site nav .logo span { color: #4da6ff; }
+        #main-site nav a { text-decoration: none; color: var(--text-dim); margin-left: 24px; font-size: 0.95rem; transition: color 0.2s; }
+        #main-site nav a:hover { color: #4da6ff; }
+        
+        #main-site .hero {
+            min-height: 70vh; background: var(--border-color);
+            display: flex; align-items: center; justify-content: center; text-align: center; padding: 60px 24px;
+        }
+        #main-site .hero h1 {
+            font-size: 3rem; color: var(--text-color); margin-bottom: 20px;
+            opacity: 0; transform: translateY(-10px); animation: titleFadeDown 1s ease-out forwards;
+        }
+        @keyframes titleFadeDown { to { opacity: 1; transform: translateY(0); } }
+        #main-site .hero p { font-size: 1.15rem; color: var(--text-dim); max-width: 640px; margin: 0 auto 30px; }
+        #main-site .hero .btn {
+            display: inline-block; padding: 12px 36px; background: #4da6ff;
+            color: #fff; text-decoration: none; border-radius: 30px; font-weight: 600;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        #main-site .hero .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(233,69,96,0.4); }
+
+        #main-site section { padding: 80px 24px; background: var(--bg-color); transition: background 0.3s; }
+        #main-site section:nth-child(even) { background: var(--border-color); }
+        #main-site .section-title { text-align: center; font-size: 2rem; margin-bottom: 16px; color: var(--text-color); }
+        #main-site .section-desc { text-align: center; color: var(--text-dim); max-width: 600px; margin: 0 auto 50px; }
+        #main-site .tip-text { text-align: center; color: var(--text-dim); margin: 1em 0; }
+        #main-site .intro-content { max-width: 800px; margin: 0 auto; font-size: 1.05rem; color: var(--text-dim); text-align: center; }
+        #main-site .intro-content a { color: #66ccff; }
+        
+        #main-site .link-container {
+            max-width: 900px; margin: 0 auto 40px; display: grid; grid-template-columns: 1fr 1fr;
+            column-gap: 7cm; row-gap: 3cm;
+        }
+        #main-site .link-box {
+            display: block; text-align: center; padding: 20px 10px; background: var(--bg-color);
+            border-radius: 12px; color: var(--text-color); font-size: 1.1rem; text-decoration: none;
+            transition: all 0.25s ease; border: 1px solid var(--border-color);
+        }
+        #main-site .link-box:hover {
+            background: var(--border-color); color: #4da6ff; transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(77, 166, 255, 0.15);
+        }
+
+        #main-site footer {
+            background: var(--border-color); color: var(--text-dim); text-align: center;
+            padding: 32px 24px; font-size: 0.9rem;
+        }
+        #main-site footer a { color: #4da6ff; text-decoration: none; }
 
         /* 退出按钮 */
         #logout-btn {
-            position: absolute; top: 40px; right: 120px; border: 1px solid #d9534f; color: #d9534f;
-            padding: 5px 15px; background: transparent; cursor: pointer; font-family: inherit; display: none; z-index: 10000;
+            position: fixed; top: 40px; right: 150px; border: 1px solid #d9534f; color: #d9534f;
+            padding: 5px 15px; background: var(--bg-color); cursor: pointer; font-family: inherit; display: none; z-index: 10000;
         }
         #logout-btn:hover { background: #d9534f; color: #fff; }
+        
+        @media (max-width: 800px) {
+            #main-site .link-container { column-gap: 20px; }
+            #main-site .hero h1 { font-size: 2rem; }
+        }
     </style>
 </head>
 <body>
 
     <!-- 主题切换按钮（常驻） -->
     <button id="theme-toggle" onclick="toggleTheme()">切换模式 / THEME</button>
+    <button id="logout-btn" onclick="logout()">退出登录 / LOGOUT</button>
 
     <!-- 启动屏 -->
     <div id="boot-screen">
@@ -184,9 +249,6 @@
             <div class="progress-bar"><div id="progress-fill"></div></div>
             <div class="progress-text" id="progress-text">REV 0.1.0 · WEB PROFILE 00:00:01</div>
         </div>
-        
-        <!-- 退出按钮（登录后显示） -->
-        <button id="logout-btn" onclick="logout()">退出登录 / LOGOUT</button>
 
         <!-- 1. 需要访问许可 -->
         <div class="center-content" id="step-1">
@@ -196,7 +258,7 @@
             <p class="hint">按 Enter / Space，或点击按钮继续</p>
         </div>
 
-        <!-- 2. 身份资料确认（注册/登录表单） -->
+        <!-- 2. 身份资料确认 -->
         <div class="center-content" id="step-2">
             <h2>身份资料确认</h2>
             <p class="en">IDENTITY VERIFICATION</p>
@@ -226,7 +288,6 @@
             <p class="hint" style="margin-top: 50px;">开始读取权限，索引工作区与会话...<br>READING PERMISSION SET</p>
         </div>
         
-        <!-- 右侧代码流 (代码流在容器外，但绝对定位) -->
         <div class="code-stream" id="code-stream"></div>
 
         <!-- 5. 读取完毕·核验通过 -->
@@ -250,24 +311,98 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- 👇 你的主站对接坑位：以后把你网站的内容全塞在这个 div 里 👇 -->
+    <!-- 👇 你的主站对接坑位：备忘录网站全搬进来了 👇 -->
     <!-- ========================================== -->
     <div id="main-site">
-        <h1>HARNESS OS</h1>
-        <p>Welcome to the core.<br>系统资料已同步完毕。<br><br><b style="color:#e69138;">👉 这里是你的主网站内容区域，把你真正的网页代码复制到这一段HTML里即可 👈</b></p>
+        <nav>
+          <div class="inner">
+            <div class="logo">华强<span>职校</span></div>
+            <div>
+              <a href="#about">关于</a>
+              <a href="#figures">知识体系</a>
+              <a href="#mini-program">小程序</a>
+            </div>
+          </div>
+        </nav>
+
+        <section class="hero">
+          <div>
+            <h1>华强职业技术学校-主科及专业知识备忘录（测试阶段）</h1>
+            <p>
+              一个总结了从2026上半学期开始的几乎所有的知识的网站
+            </p>
+            <a href="#figures" class="btn">快速定位</a>
+          </div>
+        </section>
+
+        <section id="about">
+          <h2 class="section-title">关于本站</h2>
+          <p class="section-desc">
+            一个为快速回溯知识点的高效网站平台
+          </p>
+          <p class="tip-text">注意：该网站的专业类知识仅对齐2507班的进度</p>
+          <div class="intro-content">
+            <p>
+              <strong>备忘录</strong> 是一个开放的知识分享平台，旨在通过图文展示，
+              让更多人快速回忆并复习知识的网站
+            </p>
+            <p>
+              *在后期可能更新上传能力
+            </p>
+            <p>
+              如果你有任何建议或想要往网站内加入内容，欢迎随时联系。
+              作者：250716杨文涛
+            </p>
+           </div>
+        </section>
+
+        <section id="figures">
+          <h2 class="section-title">知识体系选择</h2>
+          <p class="section-desc"></p>
+          <div class="link-container">
+            <a href="#" class="link-box">语文课知识点</a>
+            <a href="python lianxi.html" class="link-box">Python编程笔记</a>
+            <a href="#" class="link-box">数学课知识点</a>
+            <a href="#" class="link-box">无人机地面站</a>
+            <a href="#" class="link-box">英语课知识点</a>
+            <a href="#" class="link-box">无人机组装</a>
+          </div>
+        </section>
+
+        <section id="mini-program">
+          <h2 class="section-title">小程序工具</h2>
+          <p class="section-desc">内置实用小工具，解决计算、刷题问题</p>
+          <div class="link-container">
+            <a href="calb.html" target="_blank" rel="noopener" class="link-box">等差数列检测器</a>
+            <a href="calc2.html" target="_blank" rel="noopener" class="link-box">等比数列检测器（在建）</a>
+            <a href="calc3.html" target="_blank" rel="noopener" class="link-box">函数类型判断器</a>
+            <a href="shuati.html" class="link-box">无人机刷题页面</a>
+            <a href="#" class="link-box">预留工具位</a>
+            <a href="#" class="link-box">预留工具位</a>
+          </div>
+          <p style="text-align:center;margin-top:40px;">已经到底了</p>
+        </section>
+
+        <div style="text-align: center; padding: 30px 0; background: var(--bg-color);">
+          <a href="https://www.bilibili.com" target="_blank" rel="noopener" style="color: #e69138; font-size: 1.1rem;">前往 bilibili.com</a>
+          <br>
+          <a href="https://python123.io" target="_blank" rel="noopener" style="color: #e69138; font-size: 1.1rem;">编程网站 Python123.io</a>
+        </div>
+
+        <footer>
+          <p>&copy; 2026 kards。，吴迪！· <a href="#about">关于本站</a></p>
+        </footer>
     </div>
 
-    <!-- 背景音乐：将 src 改为你自己的音频链接（支持本地相对路径，如 src="bgm.mp3"） -->
+    <!-- 背景音乐 -->
     <audio id="bgm" loop>
-        <!-- 这里的 src 你自己填，可以是 .mp3 / .ogg 等 -->
-        <!-- <source src="your-music-file.mp3" type="audio/mpeg"> -->
+        <!-- <source src="bgm.mp3" type="audio/mpeg"> -->
     </audio>
 
     <script>
         let currentStep = 1;
         let globalUser = null;
 
-        // 初始化检查
         window.onload = function() {
             if (localStorage.getItem('theme') === 'dark') {
                 document.body.classList.add('dark-mode');
@@ -279,20 +414,17 @@
                 document.getElementById('boot-screen').style.display = 'none';
                 showWelcomeAndMain();
             } else {
-                // 初始强制显示第一步，防止没被渲染
                 document.getElementById('step-1').classList.add('show');
                 updateProgress(1);
             }
         };
 
-        // 主题切换逻辑
         function toggleTheme() {
             document.body.classList.toggle('dark-mode');
             const isDark = document.body.classList.contains('dark-mode');
             localStorage.setItem('theme', isDark ? 'dark' : 'light');
         }
 
-        // 动态更新进度
         function updateProgress(step) {
             const fill = document.getElementById('progress-fill');
             fill.style.width = (step / 6) * 100 + '%';
@@ -301,36 +433,25 @@
             document.getElementById('step-count').innerText = '0' + step;
         }
 
-        // 🎯 核心：切换步骤（修复点击穿透问题）
         function showStep(step) {
             currentStep = step;
-            
-            // 移除所有步骤的 show 状态
             document.querySelectorAll('.center-content').forEach(el => {
                 el.classList.remove('show');
             });
-            
-            // 延迟 0.5 秒让旧元素完全透明并禁止点击，然后切换
             setTimeout(() => {
                 const targetEl = document.getElementById('step-' + step);
                 if (targetEl) {
                     targetEl.classList.add('show');
                     updateProgress(step);
-                    
-                    // 如果切换到第二步，自动让第一个输入框获取焦点
                     if (step === 2) {
-                        setTimeout(() => {
-                            document.getElementById('input-id').focus();
-                        }, 500); // 等待 fade in 动画完毕
+                        setTimeout(() => { document.getElementById('input-id').focus(); }, 500);
                     }
                 }
-            }, 500); // 0.5秒的空白切换期，符合你的渐显感觉
+            }, 500);
         }
 
-        // 自动流程
         function nextStep(step) {
             showStep(step);
-            
             if (step === 3) {
                 setTimeout(() => { showStep(4); startCodeStream(); }, 2000);
             } else if (step === 4) {
@@ -346,7 +467,6 @@
             }
         }
 
-        // 校验账号
         function verifyAccount() {
             const inputId = document.getElementById('input-id').value.trim();
             const inputName = document.getElementById('input-name').value.trim();
@@ -383,11 +503,10 @@
         }
 
         function loginSuccess() {
-            playBGM(); // 账号验证成功，开始播放BGM
+            playBGM(); 
             nextStep(3);
         }
 
-        // 代码流特效
         let codeInterval;
         function startCodeStream() {
             const codeEl = document.getElementById('code-stream');
@@ -404,7 +523,6 @@
             document.getElementById('code-stream').style.opacity = 0;
         }
 
-        // 欢迎词 + 进入主站 + BGM淡出
         function showWelcomeAndMain() {
             const welcomeOverlay = document.getElementById('welcome-overlay');
             const welcomeText = document.getElementById('welcome-text');
@@ -412,34 +530,29 @@
             const logoutBtn = document.getElementById('logout-btn');
 
             welcomeText.innerText = `欢迎，${globalUser.name}`;
-            welcomeOverlay.style.opacity = 1; // 欢迎词 1.5s 渐显
+            welcomeOverlay.style.opacity = 1; 
             
             setTimeout(() => {
-                welcomeOverlay.style.opacity = 0; // 欢迎词淡出 (1.5s)
+                welcomeOverlay.style.opacity = 0; 
                 
                 setTimeout(() => {
                     welcomeOverlay.style.display = 'none';
                     mainSite.style.display = 'block';
                     logoutBtn.style.display = 'block';
                     void mainSite.offsetWidth;
-                    mainSite.style.opacity = 1; // 主站 4s 渐显
+                    mainSite.style.opacity = 1; 
                     
-                    fadeOutBGM(3); // 主站出现，BGM 3秒内淡出消失
+                    fadeOutBGM(3); 
                 }, 1500);
             }, 2500);
         }
 
-        // 退出登录
         function logout() {
             localStorage.removeItem('harness_user');
             location.reload();
         }
 
-        // ==============================
-        // 🎵 背景音乐控制逻辑
-        // ==============================
         const bgmAudio = document.getElementById('bgm');
-        
         function playBGM() {
             if (bgmAudio.children.length === 0 && !bgmAudio.src) return;
             bgmAudio.volume = 0.5; 
@@ -465,22 +578,14 @@
             }, fadeInterval);
         }
 
-        // 键盘输入控制（重点修复）
         function handleInputEnter(e) {
-            if (e.code === 'Enter') {
-                verifyAccount();
-            }
+            if (e.code === 'Enter') { verifyAccount(); }
         }
 
-        // 全局快捷键监听（防呆）
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Enter' || e.code === 'Space') {
-                // 如果当前焦点在输入框，让 handleInputEnter 处理，不要触发全局切换
                 if (document.activeElement.tagName === 'INPUT') return;
-                
-                if (currentStep === 1) {
-                    nextStep(2);
-                }
+                if (currentStep === 1) { nextStep(2); }
             }
         });
     </script>

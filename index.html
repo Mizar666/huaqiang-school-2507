@@ -55,7 +55,7 @@
         #boot-screen {
             position: relative; width: 100%; height: 100%; max-width: 1200px; padding: 40px;
             display: flex; flex-direction: column; justify-content: space-between;
-            transition: opacity 1s ease-in-out;
+            transition: opacity 0.8s ease-in-out;
         }
 
         .header { font-family: sans-serif; font-weight: 900; letter-spacing: 2px; }
@@ -63,14 +63,14 @@
         .header p { font-size: 12px; color: var(--text-dim); letter-spacing: 1px; }
         
         .progress-bar { margin-top: 20px; width: 200px; height: 2px; background: var(--border-color); display: flex; }
-        .progress-bar div { height: 100%; background: var(--accent-color); width: 0%; transition: width 0.3s; }
+        .progress-bar div { height: 100%; background: var(--accent-color); width: 0%; transition: width 0.4s; }
         .progress-text { font-size: 10px; color: var(--accent-color); margin-top: 5px; }
 
         /* 中间核心内容区 */
         .center-content {
             text-align: center; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
             width: 100%; max-width: 800px; opacity: 0; visibility: hidden; pointer-events: none;
-            transition: opacity 1s ease-in-out, visibility 1s;
+            transition: opacity 0.8s ease-in-out, visibility 0.8s;
         }
         .center-content.show { opacity: 1; visibility: visible; pointer-events: auto; }
         
@@ -121,19 +121,19 @@
         #welcome-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: var(--bg-color); display: flex; justify-content: center; align-items: center;
-            z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 1s ease-in-out;
+            z-index: 9999; opacity: 0; pointer-events: none; transition: opacity 0.8s ease-in-out;
         }
         #welcome-overlay h1 { font-size: 40px; letter-spacing: 5px; font-weight: bold; color: var(--text-color); }
 
-        /* 👇 主站容器（修复加载问题） 👇 */
+        /* 👇 主站容器 👇 */
         #main-site {
-            display: none; opacity: 0; transition: opacity 3s ease-in-out;
+            display: none; opacity: 0; transition: opacity 2s ease-in-out;
             position: fixed; top: 0; left: 0; width: 100%; height: 100vh; 
             background: var(--bg-color); color: var(--text-color);
             overflow-y: auto; overflow-x: hidden; z-index: 5000;
         }
 
-        /* --- 你的备忘录网站样式（已强制适配黑白主题） --- */
+        /* --- 你的备忘录网站样式 --- */
         #main-site nav {
             position: sticky; top: 0; width: 100%; background: var(--bg-color);
             z-index: 100; box-shadow: 0 1px 6px rgba(0,0,0,0.1); padding: 14px 24px;
@@ -333,46 +333,28 @@
     </audio>
 
     <script>
+        // 🚨 极简暴力流：绝不使用任何容易被拦截的高级动画API，全靠 setInterval 轮询检测！
+
         let currentStep = 1;
         let globalUser = null;
-        
-        // 🚀 核心重写：用 requestAnimationFrame 来管理动画定时，绝不被 Edge 休眠
-        let startTime = 0;
-        let targetTime = 0;
-        let animFrameId = null;
-        let currentAction = null;
 
-        function startTimer(duration, action) {
-            cancelAnimationFrame(animFrameId);
-            startTime = performance.now();
-            targetTime = duration;
-            currentAction = action;
-            
-            function loop(now) {
-                if (now - startTime >= targetTime) {
-                    if (currentAction) currentAction();
-                } else {
-                    animFrameId = requestAnimationFrame(loop);
-                }
-            }
-            animFrameId = requestAnimationFrame(loop);
-        }
-
-        window.onload = function() {
+        // 浏览器一加载，立刻检查本地存储
+        document.addEventListener('DOMContentLoaded', () => {
             if (localStorage.getItem('theme') === 'dark') {
                 document.body.classList.add('dark-mode');
             }
             
             const savedUser = localStorage.getItem('harness_user');
             if (savedUser) {
+                // 有缓存直接进主站
                 globalUser = JSON.parse(savedUser);
                 document.getElementById('boot-screen').style.display = 'none';
                 showWelcomeAndMain();
             } else {
-                document.getElementById('step-1').classList.add('show');
-                updateProgress(1);
+                // 没缓存正常走流程
+                showStep(1);
             }
-        };
+        });
 
         function toggleTheme() {
             document.body.classList.toggle('dark-mode');
@@ -385,38 +367,41 @@
             document.getElementById('step-count').innerText = '0' + step;
         }
 
+        // 🛠️ 核心暴力切换逻辑：不依赖任何定时器延迟，直接强行改变 DOM 属性
         function showStep(step) {
             currentStep = step;
-            document.querySelectorAll('.center-content').forEach(el => el.classList.remove('show'));
-            
-            // 固定的淡出到淡入间隔
-            startTimer(500, () => {
+            document.querySelectorAll('.center-content').forEach(el => {
+                el.classList.remove('show');
+            });
+
+            setTimeout(() => {
                 const target = document.getElementById('step-' + step);
                 if (target) {
                     target.classList.add('show');
                     updateProgress(step);
                     if (step === 2) {
-                        startTimer(500, () => document.getElementById('input-id').focus());
+                        document.getElementById('input-id').focus();
                     }
                 }
-            });
+            }, 300); // 固定的 300ms 间隔，足够安全
         }
 
         function nextStep(step) {
             showStep(step);
             
+            // 这里的 setTimeout 仅仅作为流程触发的触发器，如果被挂起，我们再想办法
             if (step === 3) {
-                startTimer(2000, () => { showStep(4); startCodeStream(); });
+                setTimeout(() => { showStep(4); startCodeStream(); }, 1500);
             } else if (step === 4) {
-                startTimer(2000, () => { showStep(5); stopCodeStream(); });
+                setTimeout(() => { showStep(5); stopCodeStream(); }, 1500);
             } else if (step === 5) {
-                startTimer(2500, () => { 
+                setTimeout(() => { 
                     document.getElementById('boot-screen').style.opacity = 0;
-                    startTimer(1000, () => { 
+                    setTimeout(() => { 
                         document.getElementById('boot-screen').style.display = 'none'; 
                         showWelcomeAndMain(); 
-                    });
-                });
+                    }, 800);
+                }, 2000);
             }
         }
 
@@ -471,6 +456,7 @@
                 if(codeEl.innerHTML.length > 1000) codeEl.innerHTML = '';
             }, 50);
         }
+        
         function stopCodeStream() {
             clearInterval(codeInterval);
             document.getElementById('code-stream').style.opacity = 0;
@@ -485,25 +471,19 @@
             welcomeText.innerText = `欢迎，${globalUser.name}`;
             welcomeOverlay.style.opacity = 1; 
             
-            startTimer(2500, () => {
+            setTimeout(() => {
                 welcomeOverlay.style.opacity = 0; 
-                startTimer(1000, () => {
+                setTimeout(() => {
                     welcomeOverlay.style.display = 'none';
-                    
-                    // 强力刷新主站显示状态
                     mainSite.style.display = 'block';
                     logoutBtn.style.display = 'block';
-                    window.scrollTo(0,0);
-                    mainSite.scrollTop = 0;
-                    void mainSite.offsetWidth;
                     
-                    // 给主站加个短延迟，确保前面的 DOM 已经彻底消失
-                    startTimer(50, () => {
-                        mainSite.style.opacity = 1; 
-                        fadeOutBGM(3); 
-                    });
-                });
-            });
+                    // 强行渲染
+                    mainSite.style.opacity = 1;
+                    
+                    fadeOutBGM(2); 
+                }, 800);
+            }, 2000);
         }
 
         function logout() {

@@ -43,13 +43,13 @@
 
         /* 主题切换按钮 */
         #theme-toggle {
-            position: fixed; 
+            position: absolute;
             top: 40px;
             right: 40px;
             border: 1px solid var(--text-color);
             color: var(--text-color);
             padding: 5px 15px;
-            background: var(--bg-color); 
+            background: transparent;
             cursor: pointer;
             font-family: inherit;
             z-index: 10000;
@@ -128,18 +128,6 @@
             pointer-events: none;
         }
 
-        /* 圆环动画 */
-        .circle-animation {
-            width: 200px; height: 200px; margin: 0 auto 30px; border-radius: 50%;
-            border: 2px solid var(--border-color); position: relative; border-left-color: var(--text-color); border-right-color: var(--accent-color);
-            animation: spin 2s linear infinite;
-        }
-        .circle-animation::after {
-            content: ''; position: absolute; top: 10px; left: 10px; right: 10px; bottom: 10px;
-            border-radius: 50%; border: 1px dashed var(--text-dim);
-        }
-        @keyframes spin { 100% { transform: rotate(360deg); } }
-
         /* 底部 */
         .footer { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-dim); letter-spacing: 1px; }
         .powered { font-weight: bold; color: var(--text-color); display: flex; align-items: center; gap: 5px; }
@@ -153,102 +141,36 @@
         }
         #welcome-overlay h1 { font-size: 40px; letter-spacing: 5px; font-weight: bold; color: var(--text-color); }
 
-        /* 👇 主站容器及内置网页适配 👇 */
+        /* 主站容器（给你对接的坑位） */
         #main-site {
             display: none; opacity: 0; transition: opacity 4s ease-in-out;
             width: 100%; height: 100vh; background: var(--bg-color); color: var(--text-color);
-            overflow-y: auto; overflow-x: hidden;
-            position: relative;
+            padding: 100px; text-align: center; overflow-y: auto;
         }
-
-        /* 劫持你原本网页的全局样式，防止冲突 */
-        #main-site * { box-sizing: border-box; }
-        #main-site nav {
-            position: sticky; top: 0; width: 100%; background: var(--bg-color);
-            z-index: 100; box-shadow: 0 1px 6px rgba(0,0,0,0.1); transition: background 0.3s;
-            padding: 14px 24px;
-        }
-        #main-site nav .inner {
-            max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between;
-        }
-        #main-site nav .logo { font-size: 1.3rem; font-weight: 700; color: var(--text-color); }
-        #main-site nav .logo span { color: #4da6ff; }
-        #main-site nav a { text-decoration: none; color: var(--text-dim); margin-left: 24px; font-size: 0.95rem; transition: color 0.2s; }
-        #main-site nav a:hover { color: #4da6ff; }
-        
-        #main-site .hero {
-            min-height: 70vh; background: var(--border-color);
-            display: flex; align-items: center; justify-content: center; text-align: center; padding: 60px 24px;
-        }
-        #main-site .hero h1 {
-            font-size: 3rem; color: var(--text-color); margin-bottom: 20px;
-            opacity: 0; transform: translateY(-10px); animation: titleFadeDown 1s ease-out forwards;
-        }
-        @keyframes titleFadeDown { to { opacity: 1; transform: translateY(0); } }
-        #main-site .hero p { font-size: 1.15rem; color: var(--text-dim); max-width: 640px; margin: 0 auto 30px; }
-        #main-site .hero .btn {
-            display: inline-block; padding: 12px 36px; background: #4da6ff;
-            color: #fff; text-decoration: none; border-radius: 30px; font-weight: 600;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        #main-site .hero .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(233,69,96,0.4); }
-
-        #main-site section { padding: 80px 24px; background: var(--bg-color); transition: background 0.3s; }
-        #main-site section:nth-child(even) { background: var(--border-color); }
-        #main-site .section-title { text-align: center; font-size: 2rem; margin-bottom: 16px; color: var(--text-color); }
-        #main-site .section-desc { text-align: center; color: var(--text-dim); max-width: 600px; margin: 0 auto 50px; }
-        #main-site .tip-text { text-align: center; color: var(--text-dim); margin: 1em 0; }
-        #main-site .intro-content { max-width: 800px; margin: 0 auto; font-size: 1.05rem; color: var(--text-dim); text-align: center; }
-        #main-site .intro-content a { color: #66ccff; }
-        
-        #main-site .link-container {
-            max-width: 900px; margin: 0 auto 40px; display: grid; grid-template-columns: 1fr 1fr;
-            column-gap: 7cm; row-gap: 3cm;
-        }
-        #main-site .link-box {
-            display: block; text-align: center; padding: 20px 10px; background: var(--bg-color);
-            border-radius: 12px; color: var(--text-color); font-size: 1.1rem; text-decoration: none;
-            transition: all 0.25s ease; border: 1px solid var(--border-color);
-        }
-        #main-site .link-box:hover {
-            background: var(--border-color); color: #4da6ff; transform: translateY(-4px);
-            box-shadow: 0 8px 24px rgba(77, 166, 255, 0.15);
-        }
-
-        #main-site footer {
-            background: var(--border-color); color: var(--text-dim); text-align: center;
-            padding: 32px 24px; font-size: 0.9rem;
-        }
-        #main-site footer a { color: #4da6ff; text-decoration: none; }
+        #main-site h1 { font-size: 50px; font-weight: 900; margin-bottom: 20px; letter-spacing: 5px; }
+        #main-site p { color: var(--text-dim); font-size: 18px; line-height: 2; max-width: 600px; margin: 0 auto; }
 
         /* 退出按钮 */
         #logout-btn {
-            position: fixed; top: 40px; right: 150px; border: 1px solid #d9534f; color: #d9534f;
-            padding: 5px 15px; background: var(--bg-color); cursor: pointer; font-family: inherit; display: none; z-index: 10000;
+            position: absolute; top: 40px; right: 120px; border: 1px solid #d9534f; color: #d9534f;
+            padding: 5px 15px; background: transparent; cursor: pointer; font-family: inherit; display: none; z-index: 10000;
         }
         #logout-btn:hover { background: #d9534f; color: #fff; }
-        
-        @media (max-width: 800px) {
-            #main-site .link-container { column-gap: 20px; }
-            #main-site .hero h1 { font-size: 2rem; }
-        }
     </style>
 </head>
 <body>
 
-    <!-- 主题切换按钮（常驻） -->
     <button id="theme-toggle" onclick="toggleTheme()">切换模式 / THEME</button>
-    <button id="logout-btn" onclick="logout()">退出登录 / LOGOUT</button>
 
-    <!-- 启动屏 -->
     <div id="boot-screen">
-        <!-- 头部 -->
         <div class="header">
             <h1>HARNESS OS</h1>
             <p>SYNTHESIZE INTELLIGENCE</p>
             <div class="progress-bar"><div id="progress-fill"></div></div>
             <div class="progress-text" id="progress-text">REV 0.1.0 · WEB PROFILE 00:00:01</div>
         </div>
+        
+        <button id="logout-btn" onclick="logout()">退出登录 / LOGOUT</button>
 
         <!-- 1. 需要访问许可 -->
         <div class="center-content" id="step-1">
@@ -290,14 +212,6 @@
         
         <div class="code-stream" id="code-stream"></div>
 
-        <!-- 5. 读取完毕·核验通过 -->
-        <div class="center-content" id="step-5">
-            <div class="circle-animation"></div>
-            <h2>读取完毕 · 核验通过</h2>
-            <p class="en">READ COMPLETE · VERIFIED</p>
-            <p class="hint">权限已授予<br>PERMISSION AUTHORIZED</p>
-        </div>
-
         <!-- 底部 -->
         <div class="footer">
             <div>[ <span id="step-count">01</span> / 06 ] AUTHORIZATION</div>
@@ -305,96 +219,15 @@
         </div>
     </div>
 
-    <!-- 欢迎词覆盖层 -->
     <div id="welcome-overlay">
         <h1 id="welcome-text">欢迎，XXX</h1>
     </div>
 
-    <!-- ========================================== -->
-    <!-- 👇 你的主站对接坑位：备忘录网站全搬进来了 👇 -->
-    <!-- ========================================== -->
     <div id="main-site">
-        <nav>
-          <div class="inner">
-            <div class="logo">华强<span>职校</span></div>
-            <div>
-              <a href="#about">关于</a>
-              <a href="#figures">知识体系</a>
-              <a href="#mini-program">小程序</a>
-            </div>
-          </div>
-        </nav>
-
-        <section class="hero">
-          <div>
-            <h1>华强职业技术学校-主科及专业知识备忘录（测试阶段）</h1>
-            <p>
-              一个总结了从2026上半学期开始的几乎所有的知识的网站
-            </p>
-            <a href="#figures" class="btn">快速定位</a>
-          </div>
-        </section>
-
-        <section id="about">
-          <h2 class="section-title">关于本站</h2>
-          <p class="section-desc">
-            一个为快速回溯知识点的高效网站平台
-          </p>
-          <p class="tip-text">注意：该网站的专业类知识仅对齐2507班的进度</p>
-          <div class="intro-content">
-            <p>
-              <strong>备忘录</strong> 是一个开放的知识分享平台，旨在通过图文展示，
-              让更多人快速回忆并复习知识的网站
-            </p>
-            <p>
-              *在后期可能更新上传能力
-            </p>
-            <p>
-              如果你有任何建议或想要往网站内加入内容，欢迎随时联系。
-              作者：250716杨文涛
-            </p>
-           </div>
-        </section>
-
-        <section id="figures">
-          <h2 class="section-title">知识体系选择</h2>
-          <p class="section-desc"></p>
-          <div class="link-container">
-            <a href="#" class="link-box">语文课知识点</a>
-            <a href="python lianxi.html" class="link-box">Python编程笔记</a>
-            <a href="#" class="link-box">数学课知识点</a>
-            <a href="#" class="link-box">无人机地面站</a>
-            <a href="#" class="link-box">英语课知识点</a>
-            <a href="#" class="link-box">无人机组装</a>
-          </div>
-        </section>
-
-        <section id="mini-program">
-          <h2 class="section-title">小程序工具</h2>
-          <p class="section-desc">内置实用小工具，解决计算、刷题问题</p>
-          <div class="link-container">
-            <a href="calb.html" target="_blank" rel="noopener" class="link-box">等差数列检测器</a>
-            <a href="calc2.html" target="_blank" rel="noopener" class="link-box">等比数列检测器（在建）</a>
-            <a href="calc3.html" target="_blank" rel="noopener" class="link-box">函数类型判断器</a>
-            <a href="shuati.html" class="link-box">无人机刷题页面</a>
-            <a href="#" class="link-box">预留工具位</a>
-            <a href="#" class="link-box">预留工具位</a>
-          </div>
-          <p style="text-align:center;margin-top:40px;">已经到底了</p>
-        </section>
-
-        <div style="text-align: center; padding: 30px 0; background: var(--bg-color);">
-          <a href="https://www.bilibili.com" target="_blank" rel="noopener" style="color: #e69138; font-size: 1.1rem;">前往 bilibili.com</a>
-          <br>
-          <a href="https://python123.io" target="_blank" rel="noopener" style="color: #e69138; font-size: 1.1rem;">编程网站 Python123.io</a>
-        </div>
-
-        <footer>
-          <p>&copy; 2026 kards。，吴迪！· <a href="#about">关于本站</a></p>
-        </footer>
+        <h1>HARNESS OS</h1>
+        <p>Welcome to the core.<br>系统资料已同步完毕。<br><br><b style="color:#e69138;">👉 这里是你的主网站内容区域，把你真正的网页代码复制到这一段HTML里即可 👈</b></p>
     </div>
 
-    <!-- 背景音乐 -->
     <audio id="bgm" loop>
         <!-- <source src="bgm.mp3" type="audio/mpeg"> -->
     </audio>
@@ -427,28 +260,23 @@
 
         function updateProgress(step) {
             const fill = document.getElementById('progress-fill');
-            fill.style.width = (step / 6) * 100 + '%';
+            // 把进度条强行按 4 步来算，看着更舒服
+            fill.style.width = (step / 4) * 100 + '%';
             const timeStr = '00:00:' + String(step * 8).padStart(2, '0');
             document.getElementById('progress-text').innerText = `REV 0.1.0 · WEB PROFILE ${timeStr}`;
             document.getElementById('step-count').innerText = '0' + step;
         }
 
-        // 修复：彻底重写步骤切换逻辑，防止卡死
         function showStep(step) {
             currentStep = step;
-            
-            // 隐藏所有步骤
             document.querySelectorAll('.center-content').forEach(el => {
                 el.classList.remove('show');
             });
-            
-            // 延迟显示新步骤
             setTimeout(() => {
                 const targetEl = document.getElementById('step-' + step);
                 if (targetEl) {
                     targetEl.classList.add('show');
                     updateProgress(step);
-                    
                     if (step === 2) {
                         setTimeout(() => { document.getElementById('input-id').focus(); }, 500);
                     }
@@ -456,24 +284,25 @@
             }, 500);
         }
 
-        // 修复：使用 Promise 链式调用，绝对不卡死
-        async function nextStep(step) {
+        // 🎯 这里的逻辑改成了：到第3步后，等2秒，直接进第4步刷代码，再等3秒，直接进主站
+        function nextStep(step) {
             showStep(step);
             
             if (step === 3) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                showStep(4); 
-                startCodeStream();
+                setTimeout(() => { 
+                    showStep(4); 
+                    startCodeStream(); 
+                }, 2000);
             } else if (step === 4) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                showStep(5); 
-                stopCodeStream();
-            } else if (step === 5) {
-                await new Promise(resolve => setTimeout(resolve, 2500));
-                document.getElementById('boot-screen').style.opacity = 0;
-                await new Promise(resolve => setTimeout(resolve, 1500));
-                document.getElementById('boot-screen').style.display = 'none'; 
-                showWelcomeAndMain(); 
+                setTimeout(() => { 
+                    stopCodeStream(); 
+                    // 不显示第5步圆环了，直接淡出启动屏
+                    document.getElementById('boot-screen').style.opacity = 0;
+                    setTimeout(() => { 
+                        document.getElementById('boot-screen').style.display = 'none'; 
+                        showWelcomeAndMain(); 
+                    }, 1500); // 等待淡出
+                }, 3000); // 刷3秒代码
             }
         }
 
@@ -514,7 +343,7 @@
 
         function loginSuccess() {
             playBGM(); 
-            nextStep(3);
+            nextStep(3); // 验证成功，直接进第3步
         }
 
         let codeInterval;
@@ -533,7 +362,6 @@
             document.getElementById('code-stream').style.opacity = 0;
         }
 
-        // 修复：进入主站时，滚动条直接回到顶部，防止因为刷新导致滚动位置错乱
         function showWelcomeAndMain() {
             const welcomeOverlay = document.getElementById('welcome-overlay');
             const welcomeText = document.getElementById('welcome-text');
@@ -551,7 +379,7 @@
                     mainSite.style.display = 'block';
                     logoutBtn.style.display = 'block';
                     
-                    // 强行让主站页面置顶
+                    // 强制回到顶部，防止刷新后位置不对
                     window.scrollTo(0, 0);
                     mainSite.scrollTo(0, 0);
 
@@ -595,13 +423,17 @@
         }
 
         function handleInputEnter(e) {
-            if (e.code === 'Enter') { verifyAccount(); }
+            if (e.code === 'Enter') {
+                verifyAccount();
+            }
         }
 
         document.addEventListener('keydown', (e) => {
             if (e.code === 'Enter' || e.code === 'Space') {
                 if (document.activeElement.tagName === 'INPUT') return;
-                if (currentStep === 1) { nextStep(2); }
+                if (currentStep === 1) {
+                    nextStep(2);
+                }
             }
         });
     </script>

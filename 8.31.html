@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>硬件启航与一键点灯</title>
+<link rel="stylesheet" href="engine.css">
+</head>
+<body>
+<div class="stage">
+<div class="deck" data-total="14">
+<section class="slide" id="p1" data-slide="1" data-total="14" data-layout="cover" data-ratio="50/50">
+<div class="cover">
+<h1>硬件启航与一键点灯</h1>
+<p class="cover-meta">Embedded · 2507 · 实训机房</p>
+<p class="cover-date">2026-08-31 星期一 · 第1周 课次1</p>
+</div>
+</section>
+<section class="slide" id="p2" data-slide="2" data-total="14" data-layout="stack" data-ratio="50/50">
+<header class="slide-head"><h1>今天学什么</h1><p class="kicker">导入 · 10 分钟</p></header>
+<div class="slide-body"><p>从今天起，我们开始上《嵌入式项目开发》。</p>
+<p>核心就一句话：</p>
+<p><strong>电脑写指令，硬件来干活。</strong></p>
+<p>高一学的 Python 是在电脑屏幕里打字；
+这学期我们要把代码写进芯片里，指挥物理世界通电、断电、闪烁。</p></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p3" data-slide="3" data-total="14" data-layout="stack" data-ratio="50/50">
+<header class="slide-head"><h1>我们手里的板子是什么</h1><p class="kicker">导入</p></header>
+<div class="slide-body"><p>今天每个人手里的核心板叫 <strong>ESP32</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>名称</th>
+<th>含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ESP</strong></td>
+<td>中国乐鑫公司研发的物联网芯片</td>
+</tr>
+<tr>
+<td><strong>32</strong></td>
+<td>32位高性能微型电脑处理器</td>
+</tr>
+<tr>
+<td><strong>功能</strong></td>
+<td>自带双核 CPU、板载 Wi-Fi 和蓝牙</td>
+</tr>
+</tbody>
+</table>
+<p>别看它只有半张卡大，它是一块货真价实的工业级微型电脑。</p></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p4" data-slide="4" data-total="14" data-layout="stack" data-ratio="50/50">
+<header class="slide-head"><h1>为什么还是 Python</h1><p class="kicker">导入</p></header>
+<div class="slide-body"><p>为什么学过 Python 还要学？</p>
+<p>因为我们用的是 <strong>MicroPython</strong>：</p>
+<ol>
+<li><strong>零基础无缝衔接</strong>：语法和高一学的 Python 几乎一样</li>
+<li><strong>轻量化灌入芯片</strong>：专门为单片机芯片瘦身的精简系统</li>
+<li><strong>即时掌控感</strong>：你在终端敲一行，板子上的灯就动一下</li>
+</ol></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p5" data-slide="5" data-total="14" data-layout="stack" data-ratio="50/50">
+<header class="slide-head"><h1>课堂铁律与器材责任制</h1><p class="kicker">立规矩 · 5 分钟</p></header>
+<div class="slide-body"><p>吸取以往课程的教训，今天第一件事是立规矩：</p>
+<table>
+<thead>
+<tr>
+<th>规矩</th>
+<th>怎么做</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>4 位小组长</strong></td>
+<td>每位组长管一排，负责检查和协调</td>
+</tr>
+<tr>
+<td><strong>两人一组</strong></td>
+<td>固定工位，整学期不随意调换</td>
+</tr>
+<tr>
+<td><strong>器材包产到户</strong></td>
+<td>便签写明「盒子编号 + 两人姓名」贴盒盖</td>
+</tr>
+<tr>
+<td><strong>台账登记</strong></td>
+<td>老师当场记录，谁损坏、丢零件谁负责</td>
+</tr>
+</tbody>
+</table></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p6" data-slide="6" data-total="14" data-layout="stack" data-ratio="50/50">
+<header class="slide-head"><h1>极简零件管制：只留两样</h1><p class="kicker">实操 · 5 分钟</p></header>
+<div class="slide-body"><p>打开收纳盒，严格执行：</p>
+<ul>
+<li><strong>桌面上只准留两样</strong>：USB 数据线 1 根 + ESP32 板子 1 块</li>
+<li><strong>其余所有配件</strong>：面包板、杜邦线、小元件一律留在盒内</li>
+<li><strong>小组长检查</strong>：巡视全排桌面，确认只有线和板</li>
+<li><strong>收纳盒统一上交</strong>：讲台集中保管，防止压弯排针</li>
+</ul></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p7" data-slide="7" data-total="14" data-layout="stack" data-ratio="50/50">
+<header class="slide-head"><h1>Thonny 预热：先电脑，后板子</h1><p class="kicker">讲解 · 5 分钟</p></header>
+<div class="slide-body"><p>先不插板子，打开电脑桌面的 <strong>Thonny</strong> 快捷方式。</p>
+<p>在上方编辑区输入，按 <strong>F5</strong> 运行：</p><pre><code class="lang-python">print(<span class="tok-s">&quot;Hello 2507! 嵌入式第一课启动！&quot;</span>)</code></pre><p>记住两个最常用快捷键：
+- <strong>F5</strong>：保存并运行
+- <strong>Ctrl + C</strong>：紧急终止当前运行的程序</p></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p8" data-slide="8" data-total="14" data-layout="stack" data-ratio="50/50">
+<header class="slide-head"><h1>插线与认端口</h1><p class="kicker">演示 · 5 分钟</p></header>
+<div class="slide-body"><p>现在连接电脑和板子：</p>
+<ol>
+<li>数据线一头插电脑 USB 口，一头插 ESP32 板子。</li>
+<li>观察板子上的<strong>红色电源指示灯</strong>是否常亮。</li>
+<li>看 Thonny 右下角或设备管理器，是否出现类似 <strong>COM3</strong> 或 <strong>COM4</strong> 的端口号。</li>
+<li>没认到端口的同学举手，组长协助插紧数据线。</li>
+</ol></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p9" data-slide="9" data-total="14" data-layout="stack" data-ratio="50/50">
+<header class="slide-head"><h1>一键刷机灌系统</h1><p class="kicker">实操 · 10 分钟</p></header>
+<div class="slide-body"><p>板子出厂没有系统，需要灌入 MicroPython：</p>
+<ol>
+<li>跟着老师演示，双击运行桌面的 <strong><code>一键烧录MicroPython.bat</code></strong>。</li>
+<li>黑框控制台自动清除 Flash 并写入固件，看到 <code>Done / 成功</code> 后关闭。</li>
+<li>拔出数据线，重新插上电脑。</li>
+<li>在 Thonny 右下角点击切换解释器：选择 <strong><code>MicroPython (ESP32)</code></strong>。</li>
+<li>底部 Shell 出现 <code>&gt;&gt;&gt;</code> 符号，说明芯片系统就绪！</li>
+</ol></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p10" data-slide="10" data-total="14" data-layout="stack" data-ratio="50/50">
+<header class="slide-head"><h1>基础任务：点亮板载蓝灯</h1><p class="kicker">实操 · 15 分钟</p></header>
+<div class="slide-body"><p>分发文件：打开 <code>01_blink.py</code>，直接按 <strong>F5</strong> 运行！</p><pre><code class="lang-python"><span class="tok-k">from</span> machine <span class="tok-k">import</span> Pin
+<span class="tok-k">import</span> time
+
+led = Pin(<span class="tok-n">2</span>, Pin.OUT)  <span class="tok-c"># 板载蓝灯在引脚 2</span>
+
+<span class="tok-k">while</span> <span class="tok-k">True</span>:
+    led.value(<span class="tok-n">1</span>)       <span class="tok-c"># 蓝灯亮</span>
+    time.sleep(<span class="tok-n">0.5</span>)    <span class="tok-c"># 等 0.5 秒</span>
+    led.value(<span class="tok-n">0</span>)       <span class="tok-c"># 蓝灯灭</span>
+    time.sleep(<span class="tok-n">0.5</span>)    <span class="tok-c"># 等 0.5 秒</span></code></pre><p><strong>改参任务</strong>：修改 <code>time.sleep</code> 的数字，改出<strong>极速快闪（0.1秒）</strong>或<strong>慢闪（1秒）</strong>。</p></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p11" data-slide="11" data-total="14" data-layout="stack" data-ratio="50/50">
+<header class="slide-head"><h1>进阶任务：短闪两次，长暗 1.5 秒</h1><p class="kicker">进阶 · 前 30% 快速组</p></header>
+<div class="slide-body"><p>基础闪灯改通的同学，挑战修改节奏：</p>
+<p><strong>目标效果</strong>：
+短闪 2 次，然后长暗 1.5 秒，不断循环。</p>
+<p><strong>参考思路</strong>：</p><pre><code class="lang-python"><span class="tok-k">while</span> <span class="tok-k">True</span>:
+    <span class="tok-c"># 第一次短闪</span>
+    led.value(<span class="tok-n">1</span>); time.sleep(<span class="tok-n">0.1</span>)
+    led.value(<span class="tok-n">0</span>); time.sleep(<span class="tok-n">0.1</span>)
+    <span class="tok-c"># 第二次短闪</span>
+    led.value(<span class="tok-n">1</span>); time.sleep(<span class="tok-n">0.1</span>)
+    led.value(<span class="tok-n">0</span>); time.sleep(<span class="tok-n">1.5</span>)  <span class="tok-c"># 长暗 1.5 秒</span></code></pre><p>修改参数并调试出标准双闪效果。</p></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p12" data-slide="12" data-total="14" data-layout="stack" data-ratio="50/50">
+<header class="slide-head"><h1>挑战任务：手指引脚触摸开关</h1><p class="kicker">挑战 · 前 10% 极速组</p></header>
+<div class="slide-body"><p>不需要按钮，直接用<strong>手指当开关</strong>！</p>
+<p>ESP32 板载电容触摸检测，打开 <code>03_touch.py</code> 运行：</p><pre><code class="lang-python"><span class="tok-k">from</span> machine <span class="tok-k">import</span> Pin, TouchPad
+<span class="tok-k">import</span> time
+
+led = Pin(<span class="tok-n">2</span>, Pin.OUT)
+t = TouchPad(Pin(<span class="tok-n">4</span>))   <span class="tok-c"># GPIO 4 排针支持触摸</span>
+
+<span class="tok-k">while</span> <span class="tok-k">True</span>:
+    <span class="tok-k">if</span> t.read() &lt; <span class="tok-n">250</span>: <span class="tok-c"># 手指触碰排针时读数会变小</span>
+        led.value(<span class="tok-n">1</span>)   <span class="tok-c"># 摸上去亮灯</span>
+    <span class="tok-k">else</span>:
+        led.value(<span class="tok-n">0</span>)   <span class="tok-c"># 松开熄灭</span>
+    time.sleep(<span class="tok-n">0.05</span>)</code></pre><p>用手指直接触摸板子上的 <strong>GPIO 4（D4）金属排针</strong>，体验触摸开关！</p></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p13" data-slide="13" data-total="14" data-layout="stack" data-ratio="50/50">
+<header class="slide-head"><h1>当堂验收与学号留痕</h1><p class="kicker">验收 · 5 分钟</p></header>
+<div class="slide-body"><p>完成实验的工位，请举手等待老师巡视验收：</p>
+<ul>
+<li><strong>现场演示（主）</strong>：老师巡视工位，亲眼看到板载蓝灯效果并在台账打勾</li>
+<li><strong>终端留痕（辅）</strong>：在底部 Shell 终端敲入学号姓名并运行留痕：</li>
+</ul><pre><code class="lang-python">print(<span class="tok-s">&quot;2507班 01号 张三 嵌入式第一课完成！&quot;</span>)</code></pre></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p14" data-slide="14" data-total="14" data-layout="stack" data-ratio="50/50">
+<header class="slide-head"><h1>器材清点与下课</h1><p class="kicker">总结 · 5 分钟</p></header>
+<div class="slide-body"><ol>
+<li>拔出 USB 数据线，顺直并扎好。</li>
+<li>小组长发回 23 个收纳盒。</li>
+<li>检查：<strong>线 1 根 + 板 1 块</strong>，原样放回盒内，盖好盖子。</li>
+<li>小组长核对全排盒子齐全、外观无损坏，向老师汇报。</li>
+<li>老师确认无误后，全班关闭显示器，按顺序下课。</li>
+</ol></div>
+<div class="slide-media"></div>
+</section>
+</div>
+</div>
+<div class="pager" aria-live="polite"></div>
+<script src="engine.js" defer></script>
+</body>
+</html>

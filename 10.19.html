@@ -1,0 +1,2886 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>无源蜂鸣器 · 从&quot;响&quot;到&quot;唱一首歌&quot;</title>
+<style>
+:root {
+  /* ── 版式 token：所有主题共用，主题文件不得覆盖 ── */
+  --pad-y: 4.5rem;
+  --pad-x: 5rem;
+  --pad-bottom: 4rem;
+  --fs-h1: 3.2rem;
+  --fs-h2: 2.4rem;
+  --fs-body: 1.75rem;
+  --fs-small: 1.4rem;
+  --radius: 1rem;
+  --gap: 1.4rem;
+  --hud-offset-x: 1.2rem;
+  --hud-offset-y: 0.8rem;
+
+  /* ── 颜色 token：默认主题（暖纸），可被 themes/*.css 覆盖 ── */
+  --paper: #f7f4ec;
+  --ink: #16140f;
+  --ink-soft: #4a453e;
+  --accent: #e8590c;
+  --line: #16140f;
+  --line-soft: rgba(22, 20, 15, 0.18);
+  --stage: #d9d4c8;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--stage);
+  color: var(--ink);
+  font-family: "Microsoft YaHei", "PingFang SC", "Noto Sans SC", sans-serif;
+}
+
+.stage {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--stage);
+}
+
+.deck {
+  aspect-ratio: 16 / 9;
+  width: min(100vw, calc(100vh * 16 / 9));
+  height: auto;
+  max-height: 100vh;
+  background: var(--paper);
+  position: relative;
+  overflow: hidden;
+}
+
+.slide {
+  display: none;
+  position: absolute;
+  inset: 0;
+  padding: var(--pad-y) var(--pad-x) var(--pad-bottom);
+  overflow: hidden;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr;
+  gap: 1rem var(--gap);
+  min-height: 0;
+}
+
+.slide.is-current { display: grid; }
+
+.slide-head { grid-column: 1 / -1; min-width: 0; }
+.slide-body {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+}
+.slide-media {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.slide[data-layout="stack"]:not(.has-media) .slide-media { display: none; }
+.slide[data-layout="stack"].has-media {
+  grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.slide[data-layout="split-right"],
+.slide[data-layout="split-left"] {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+.slide[data-layout="split-right"] .slide-body { grid-column: 1; }
+.slide[data-layout="split-right"] .slide-media { grid-column: 2; }
+.slide[data-layout="split-left"] .slide-body { grid-column: 2; }
+.slide[data-layout="split-left"] .slide-media { grid-column: 1; }
+
+.slide[data-layout="split-right"][data-ratio="60/40"],
+.slide[data-layout="split-left"][data-ratio="60/40"] {
+  grid-template-columns: 3fr 2fr;
+}
+.slide[data-layout="split-left"][data-ratio="60/40"] {
+  grid-template-columns: 2fr 3fr;
+}
+.slide[data-layout="split-right"][data-ratio="40/60"],
+.slide[data-layout="split-left"][data-ratio="40/60"] {
+  grid-template-columns: 2fr 3fr;
+}
+.slide[data-layout="split-left"][data-ratio="40/60"] {
+  grid-template-columns: 3fr 2fr;
+}
+
+.slide[data-layout="split-bottom"] {
+  grid-template-rows: auto minmax(0, 0.9fr) minmax(0, 1.1fr);
+}
+.slide[data-layout="split-bottom"] .slide-body { grid-row: 2; }
+.slide[data-layout="split-bottom"] .slide-media { grid-row: 3; }
+
+.slide[data-layout="split-top"] {
+  grid-template-rows: auto minmax(0, 1.1fr) minmax(0, 0.9fr);
+}
+.slide[data-layout="split-top"] .slide-media { grid-row: 2; }
+.slide[data-layout="split-top"] .slide-body { grid-row: 3; }
+
+.slide[data-layout="cover"] {
+  display: none;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+.slide[data-layout="cover"].is-current { display: grid; }
+
+.media-slot {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  min-height: 0;
+}
+.media-slot img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  object-position: center;
+}
+
+/* ── 图卡组件（@media image 默认形态）：描边 + 右下角全屏按钮 ──
+   红线：媒体槽落在「隐式行」，高度由内容撑 —— 任何给图加的外框（border/padding/wrapper）
+   都会从正文（1fr 行）里偷高度，实测第 5 页 720p 就溢出了。
+   所以描边一律走不占布局的 inset box-shadow + 绝对定位按钮：
+   图片盒子尺寸与裸图逐像素相同，正文高度分毫不受影响。
+   7px 白衬边 + 3px 描边（视觉上裁掉画面外沿 10px，白底产品图无感）。 */
+.media-figure { position: relative; }
+.media-figure img {
+  box-shadow:
+    inset 0 0 0 7px var(--card-bg),
+    inset 0 0 0 10px var(--line);
+  border-radius: calc(var(--radius) * 0.6);
+}
+.media-zoom {
+  position: absolute;
+  right: 0.85rem;
+  bottom: 0.85rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.85rem;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: var(--card-bg);
+  color: var(--ink);
+  font: inherit;
+  font-size: clamp(13px, 1.15vw, 18px);
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.92;
+}
+.media-zoom:hover,
+.media-zoom:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+  opacity: 1;
+}
+.media-zoom-icon { font-size: 1.15em; }
+
+/* 原生全屏：图卡占满屏幕、深底承托，图按 contain 居中 */
+.media-figure:fullscreen {
+  padding: 0;
+  background: #0b0f14;
+}
+.media-figure:fullscreen img { box-shadow: inset 0 0 0 3px var(--line); }
+
+/* 兜底遮罩：沙箱（WebUI 预览）里 requestFullscreen 会被拒，用固定遮罩达到同样效果 */
+.media-zoom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2vh 2vw;
+  background: #0b0f14;
+  cursor: zoom-out;
+}
+.media-zoom-overlay img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.media-zoom-close {
+  position: absolute;
+  right: 1.4rem;
+  bottom: 1.2rem;
+  padding: 0.5rem 1.1rem;
+  border: 2px solid var(--paper);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--paper);
+  font: inherit;
+  font-size: clamp(14px, 1.2vw, 19px);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+/* ── 视频槽：外链只给超链接卡片（不嵌 iframe）；本地 assets/*.mp4 才用 <video> ── */
+.media-slot.video-slot {
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.media-slot .media-embed {
+  display: block;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: 2px solid var(--line);
+  background: #000;
+}
+.video-link {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 2.2rem;
+  width: 100%;
+  min-height: 0;
+  padding: 3.4vh 2.6vw;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  color: var(--ink);
+  text-decoration: none;
+}
+.video-link:hover,
+.video-link:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+.video-link-play {
+  flex: 0 0 auto;
+  width: 8rem;
+  height: 8rem;
+  display: grid;
+  place-items: center;
+  padding-left: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--paper);
+  font-size: 3.2rem;
+  line-height: 1;
+}
+.video-link-text { min-width: 0; }
+.video-link-title {
+  display: block;
+  font-size: clamp(32px, 3vw, 50px);
+  font-weight: 800;
+  line-height: 1.2;
+}
+.video-link-url {
+  display: block;
+  margin-top: 1.1rem;
+  font-size: 1.6rem;
+  color: var(--ink-soft);
+  word-break: break-all;
+}
+.video-link-go {
+  flex: 0 0 auto;
+  margin-left: auto;
+  font-size: 2.1rem;
+  font-weight: 800;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+/* ── 外链按钮（@media link <url> <label>）：学生自己点开外部系统，不嵌入 ── */
+.media-slot.link-slot {
+  height: auto;
+  padding: 0.3rem 0;
+}
+
+.link-cta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 1.2rem;
+  max-width: 100%;
+  padding: 1.05rem 1.9rem;
+  border: 3px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  text-decoration: none;
+  box-shadow: 0.45rem 0.45rem 0 var(--ink);
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.link-cta:hover,
+.link-cta:focus-visible {
+  transform: translate(0.25rem, 0.25rem);
+  box-shadow: 0.2rem 0.2rem 0 var(--ink);
+}
+.link-cta-label {
+  font-size: clamp(19px, 1.8vw, 28px);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.link-cta-url {
+  font-size: clamp(12px, 1vw, 15px);
+  opacity: 0.85;
+  word-break: break-all;
+}
+.link-cta-go {
+  font-size: clamp(15px, 1.3vw, 20px);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.slide-body img {
+  max-width: 100%;
+  height: auto;
+}
+
+.slide h1 {
+  font-size: var(--fs-h2);
+  font-weight: 700;
+  margin: 0 0 1.2rem;
+  line-height: 1.25;
+}
+
+.slide p, .slide li {
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  margin: 0.4rem 0;
+}
+
+.slide ul, .slide ol { margin: 0.6rem 0 0 1.6rem; padding: 0; }
+
+.slide h1 + p,
+.slide .kicker {
+  font-size: var(--fs-small);
+  color: var(--accent);
+  font-weight: 700;
+  margin: -0.6rem 0 1.1rem;
+}
+.slide .kicker { margin-top: -0.6rem; }
+
+.slide table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: var(--fs-small);
+  background: var(--paper);
+}
+.slide th, .slide td {
+  border: 2px solid var(--line);
+  padding: 0.55rem 0.8rem;
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.4;
+}
+.slide th {
+  background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+  font-weight: 700;
+}
+.slide td code, .slide th code { font-size: 1.15rem; }
+
+/* 全宽 stack 页里的长表：默认表格（--fs-small + 0.55rem 内边距）在 1280×720 下
+   放不下 11 行（成绩单实测 scrollHeight 567 / 可用 539）。这里只对 stack 版式收紧，
+   按 1.2rem / 0.35rem 排 11 行约 494px，720p 下完整可见。其它版式的表格不受影响。 */
+.slide[data-layout="stack"] table { font-size: 1.2rem; }
+.slide[data-layout="stack"] th,
+.slide[data-layout="stack"] td { padding: 0.35rem 0.7rem; }
+
+.cover {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.cover h1 { font-size: var(--fs-h1); margin-bottom: 1.4rem; }
+.cover-meta { font-size: var(--fs-body); margin: 0.3rem 0; }
+.cover-date { font-size: var(--fs-small); color: var(--accent); margin: 0.3rem 0; }
+
+pre, code {
+  font-family: Consolas, "Sarasa Mono SC", "Noto Sans Mono", monospace;
+}
+
+pre {
+  font-size: 1.25rem;
+  line-height: 1.45;
+  border: 2px solid var(--line);
+  padding: 1rem 1.2rem;
+  overflow: auto;
+  background: var(--paper);
+  margin: 1rem 0;
+}
+
+code { font-size: 1.2rem; }
+
+.tok-k { font-weight: 700; color: var(--accent); }
+.tok-s { color: var(--ink); }
+.tok-c { color: var(--ink-soft); }
+.tok-n { color: var(--ink); }
+
+/* HUD 必须固定在画布右下角：严禁底部居中（会遮挡正文底端与卡片） */
+.hud {
+  position: absolute;
+  right: var(--hud-offset-x);
+  bottom: var(--hud-offset-y);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.hud-btn {
+  font: inherit;
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 0.35rem 0.7rem;
+  border: 1px solid var(--line-soft);
+  border-radius: calc(var(--radius) * 0.4);
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+}
+.hud-btn:hover { border-color: var(--accent); color: var(--accent); }
+.hud-page { font-size: 1.3rem; font-weight: 700; color: var(--accent); }
+
+.fragment { visibility: hidden; }
+.fragment.is-shown { visibility: visible; }
+
+body.is-overview {
+  overflow: auto;
+  background: var(--stage);
+}
+
+body.is-overview .stage { display: block; height: auto; padding: 1rem; }
+body.is-overview .deck {
+  width: auto;
+  height: auto;
+  max-height: none;
+  aspect-ratio: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 0.8rem;
+  overflow: visible;
+  background: transparent;
+}
+body.is-overview .slide {
+  display: grid;
+  position: relative;
+  inset: auto;
+  aspect-ratio: 16 / 9;
+  transform: none;
+  font-size: 40%;
+  padding: 1rem;
+  overflow: hidden;
+  background: var(--paper);
+  border: 2px solid var(--line);
+  cursor: pointer;
+}
+body.is-overview .slide.is-current { outline: 3px solid var(--accent); }
+body.is-overview .hud { display: none; }
+
+/* ── Reference-style blocks / replica theme ─────────────────────── */
+:root {
+  --brand: #e8590c;
+  --brand-soft: #fff4ea;
+  --card-bg: #ffffff;
+  --code-bg: #1e293b;
+  --code-head: #0f172a;
+  --code-line: #334155;
+  --code-ink: #e2e8f0;
+  --green: #16a34a;
+  --red: #dc2626;
+  --amber: #d97706;
+  --ink-muted: #64748b;
+}
+
+/* cover with full-bleed image */
+.layout-base .slide[data-layout="cover"] { padding: 0; }
+.layout-base .slide[data-layout="cover"] .cover:not(.cover-image) {
+  padding: var(--pad-y) var(--pad-x);
+}
+
+.layout-base .cover-image {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--paper);
+}
+.layout-base .cover-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+.layout-base .cover-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(90deg, rgba(15, 23, 42, 0.92) 0%, rgba(15, 23, 42, 0.65) 45%, rgba(15, 23, 42, 0.2) 100%);
+}
+.layout-base .cover-copy {
+  position: relative;
+  z-index: 3;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2.2vh;
+  padding-left: 6%;
+  max-width: 70%;
+}
+.layout-base .cover-kicker {
+  font-size: clamp(15px, 1.6vw, 22px);
+  font-weight: 800;
+  color: #38bdf8;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.layout-base .cover-copy h1 {
+  margin: 0;
+  font-size: clamp(40px, 4.8vw, 70px);
+  font-weight: 900;
+  line-height: 1.15;
+  color: #ffffff;
+  text-shadow: 0 4px 16px rgba(0, 0, 0, 0.6);
+}
+.layout-base .cover-subtitle {
+  margin: 0;
+  font-size: clamp(18px, 2vw, 28px);
+  color: #cbd5e1;
+  font-weight: 700;
+}
+.layout-base .cover-badges { display: flex; gap: 14px; margin-top: 1.5vh; }
+.layout-base .cover-badge {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 6px 18px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+}
+.layout-base .cover-badge.alt {
+  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(37, 99, 235, 0.35);
+  color: #7dd3fc;
+}
+
+/* reference page frame */
+.layout-base .slide {
+  padding: 3.5% 4.5%;
+  background: var(--paper);
+}
+.layout-base .slide-body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2vh;
+}
+.layout-base .slide-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 2vh;
+  padding-bottom: 1.5vh;
+  border-bottom: 2px solid var(--line);
+}
+.layout-base .slide-head h1 {
+  margin: 0;
+  font-size: clamp(24px, 3vw, 40px);
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: var(--ink);
+}
+.layout-base .slide-head .kicker {
+  margin: 0;
+  padding: 4px 14px;
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 20px;
+  background: var(--brand-soft);
+  color: var(--brand);
+  font-size: clamp(14px, 1.4vw, 19px);
+  font-weight: 700;
+}
+
+/* cards / banners / text */
+.layout-base .card.block-card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.6vh;
+  padding: 2.2vh 2vw;
+  border: 2px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.04);
+}
+.layout-base .card.block-card h3 {
+  margin: 0 0 1vh;
+  font-size: clamp(19px, 1.9vw, 25px);
+  color: var(--ink);
+}
+.layout-base .card.block-card p,
+.layout-base .card.block-card li {
+  margin: 0.2rem 0;
+  font-size: clamp(15px, 1.4vw, 20px);
+  line-height: 1.55;
+  color: var(--ink-soft);
+  white-space: pre-line;
+}
+.layout-base .card.block-card strong { color: var(--ink); }
+.layout-base .card.tone-red { border-top: 6px solid var(--red); }
+.layout-base .card.tone-amber { border-top: 6px solid var(--amber); }
+.layout-base .card.tone-blue { border-top: 6px solid var(--brand); }
+.layout-base .card.tone-green { border-top: 6px solid var(--green); }
+.layout-base .card.tone-slate { border-top: 6px solid var(--ink-muted); }
+.layout-base .card.tone-red-solid { border: 2px solid var(--red); background: #fef2f2; }
+.layout-base .card.tone-green-solid { border: 2px solid var(--green); background: #f0fdf4; }
+
+.layout-base .banner.block-banner {
+  padding: 1.5vh 1.8vw;
+  border: 1px solid var(--line);
+  border-left: 6px solid var(--brand);
+  border-radius: 8px;
+  background: #f8fafc;
+  color: var(--ink);
+  font-size: clamp(15px, 1.45vw, 21px);
+  line-height: 1.5;
+}
+.layout-base .banner.alert {
+  border-color: #fecaca;
+  border-left-color: var(--red);
+  background: #fef2f2;
+  color: #991b1b;
+}
+.layout-base .banner.success {
+  border-color: #bbf7d0;
+  border-left-color: var(--green);
+  background: #f0fdf4;
+  color: #166534;
+}
+.layout-base .block-text {
+  font-size: clamp(16px, 1.5vw, 22px);
+  font-weight: 700;
+}
+.layout-base .card blockquote {
+  margin: 1.2vh 0 0;
+  padding: 1.2vh 1.2vw;
+  border-left: 6px solid var(--amber);
+  border-radius: 8px;
+  background: #fff7ed;
+  color: var(--ink);
+  font-size: clamp(14px, 1.3vw, 18px);
+}
+
+/* code blocks */
+.layout-base .code-wrapper {
+  overflow: hidden;
+  border: 1px solid var(--code-line);
+  border-radius: 12px;
+  background: var(--code-bg);
+}
+.layout-base .code-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--code-line);
+  background: var(--code-head);
+}
+.layout-base .code-lang {
+  color: #94a3b8;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.layout-base .copy-btn {
+  padding: 4px 12px;
+  border: 1px solid #475569;
+  border-radius: 6px;
+  background: #334155;
+  color: #f8fafc;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+.layout-base .copy-btn:hover { border-color: var(--brand); background: var(--brand); color: #fff; }
+.layout-base .copy-btn.copied { border-color: var(--green); background: var(--green); color: #fff; }
+.layout-base .code-box {
+  margin: 0;
+  padding: 2vh 1.8vw;
+  overflow-x: auto;
+  border: 0;
+  background: var(--code-bg);
+  color: var(--code-ink);
+  font-family: Consolas, Monaco, "Cascadia Code", monospace;
+  font-size: clamp(15px, 1.55vw, 22px);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+.layout-base .code-box .tok-k,
+.layout-base .card pre .tok-k { color: #f472b6; font-weight: bold; }
+.layout-base .code-box .tok-s,
+.layout-base .card pre .tok-s { color: #4ade80; }
+.layout-base .code-box .tok-c,
+.layout-base .card pre .tok-c { color: #94a3b8; font-style: italic; }
+.layout-base .code-box .tok-n,
+.layout-base .card pre .tok-n { color: #fbbf24; }
+.layout-base .card pre {
+  margin: 0.4vh 0 0;
+  padding: 1.4vh 1.4vw;
+  overflow-x: auto;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  background: #0f172a;
+  color: #e2e8f0;
+  font-size: clamp(14px, 1.35vw, 19px);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+.layout-base .card pre code { color: inherit; font-size: inherit; }
+
+/* block layouts */
+.layout-base .slide[data-layout="stack"] .slide-body {
+  justify-content: center;
+}
+.layout-base .slide[data-layout="cards-2"] .slide-body,
+.layout-base .slide[data-layout="cards-3"] .slide-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2vh 2.5vw;
+  align-content: center;
+}
+.layout-base .slide[data-layout="cards-3"] .slide-body {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.layout-base .slide[data-layout="cards-2"] .block-banner,
+.layout-base .slide[data-layout="cards-3"] .block-banner {
+  grid-column: 1 / -1;
+}
+.layout-base .slide[data-layout="stack"] .block-banner { width: 100%; }
+
+/* 卡片页可以再带一条媒体/按钮（@media link）：卡片占 1fr，按钮按内容高度落在页脚 */
+.slide[data-layout="cards-2"].has-media,
+.slide[data-layout="cards-3"].has-media {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.layout-base .slide[data-layout="code-split"] .slide-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 2vh 2.5vw;
+  align-content: start;
+  align-items: start;
+}
+/* 2026-10-15 修正：原来所有卡片都写死 grid-row: 1 / span 2，同一页放两张卡时会被塞进
+   同一格 → 完全重叠（w7-2 第 2、5 页踩坑）。一页两张卡时改成「右列两行按内容高度排」，
+   第二张卡自动落到下一行纵向堆叠；老浏览器不支持 :has 时整条规则被忽略，退回原来的版式。 */
+.layout-base .slide[data-layout="code-split"]:has(.block-card + .block-card) .slide-body,
+.layout-base .slide[data-layout="code-split-reverse"]:has(.block-card + .block-card) .slide-body {
+  grid-template-rows: auto auto;
+}
+.layout-base .slide[data-layout="code-split"]:has(.block-card + .block-card) .block-card,
+.layout-base .slide[data-layout="code-split-reverse"]:has(.block-card + .block-card) .block-card {
+  grid-row: auto;
+}
+.layout-base .slide[data-layout="code-split"]:has(.block-card + .block-card) .block-banner,
+.layout-base .slide[data-layout="code-split-reverse"]:has(.block-card + .block-card) .block-banner {
+  grid-row: 3;
+}
+.layout-base .slide[data-layout="code-split"][data-has-text="true"] .slide-body {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+.layout-base .slide[data-layout="code-split"] .block-card {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+.layout-base .slide[data-layout="code-split"] .block-text {
+  grid-column: 1;
+  grid-row: 1;
+}
+.layout-base .slide[data-layout="code-split"] .block-code {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: stretch;
+  width: 100%;
+  height: 100%;
+  max-height: 58vh;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.layout-base .slide[data-layout="code-split"][data-has-text="true"] .block-code {
+  grid-row: 2;
+}
+.layout-base .slide[data-layout="code-split"] .block-banner {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+.layout-base .slide[data-layout="code-split"][data-has-text="true"] .block-banner {
+  grid-row: 3;
+}
+
+.layout-base .slide[data-layout="code-split-reverse"] .slide-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 2vh 2.5vw;
+  align-content: start;
+  align-items: start;
+}
+.layout-base .slide[data-layout="code-split-reverse"] .block-card {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: start;
+}
+.layout-base .slide[data-layout="code-split-reverse"] .block-code {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: stretch;
+  width: 100%;
+  height: 100%;
+  max-height: 58vh;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.layout-base .slide[data-layout="code-split-reverse"] .block-banner {
+  grid-column: 1 / -1;
+  grid-row: 2;
+}
+
+/* 2026-10-19：组件（提交框等）占代码位时的**落位与高度**，两条一起看：
+   1) 反列版式里要落**左列**（原来只有卡片能占左列）：P11 = 左列提交框 + 右列"复制给 AI"的提示词。
+      ⚠️ 选择器必须用 [data-demo]：**组件挂载时会 classList.remove("demo")**，只有 data-demo 属性留得住；
+      末尾那个 .block-code 是为了压过 `.slide[data-layout="code-split-reverse"] .block-code`（否则被推到右列）。
+   2) 两种版式都要**跨满两行 + 拉伸**：一页两张卡时行高是 `auto auto`，组件高度就跟着预填内容走
+      （实测同为提交框 343px ↔ 624px 并存），学生在框里写十几行时得一直滚。 */
+.layout-base .slide[data-layout="code-split-reverse"] [data-demo].block-code {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  align-self: stretch;
+  max-height: 58vh;
+}
+.layout-base .slide[data-layout="code-split"] [data-demo].block-code {
+  grid-row: 1 / span 2;
+  align-self: stretch;
+  max-height: 58vh;
+}
+
+/* 长代码不截内容：让 code-box 在剩余高度内滚动 */
+/* 注意：渲染器输出的是同一个元素 <div class="code-wrapper block-code">，
+   因此这里必须写成 .block-code.code-wrapper，不能再多一层后代选择器。 */
+/* 2026-09-17 修正：原来只给 code-split 配了滚动，其它版式（split-right 等）里
+   代码会直接被 .slide 的 overflow:hidden 裁掉且没有滚动条。这里改成全版式生效：
+   flex:1 1 auto + min-height:0 让代码块在版式剩余高度内收缩，内部再滚动。 */
+.layout-base .block-code.code-wrapper {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.layout-base .slide[data-layout="code-split"] .block-code.code-wrapper,
+.layout-base .slide[data-layout="code-split-reverse"] .block-code.code-wrapper {
+  height: 100%;
+}
+.layout-base .block-code .code-box {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  overflow: auto;
+}
+
+/* 代码块超过高度上限时，滚动条必须清晰可见；scroll 保证长代码初始就显示滚动条 */
+.layout-base .block-code .code-box {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: #64748b #0f172a;
+}
+.layout-base .block-code .code-box::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+.layout-base .block-code .code-box::-webkit-scrollbar-track {
+  background: #0f172a;
+}
+.layout-base .block-code .code-box::-webkit-scrollbar-thumb {
+  border: 2px solid #0f172a;
+  border-radius: 999px;
+  background: #64748b;
+}
+.layout-base .block-code .code-box::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* replica HUD: reference-style pill */
+.layout-base .hud {
+  right: 2vw;
+  bottom: 1.5vh;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 30px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(8px);
+}
+.layout-base .hud-btn {
+  padding: 2px 6px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 16px;
+}
+.layout-base .hud-btn:hover { background: var(--line); color: var(--ink); }
+.layout-base .hud-page {
+  color: var(--ink-muted);
+  font-size: 15px;
+  font-feature-settings: "tnum";
+}
+
+/* ── banwu theme signature: warm paper + orange + sharp black borders ── */
+.theme-banwu .slide-head {
+  border-bottom: 3px solid var(--ink);
+}
+.theme-banwu .slide-head .kicker {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--amber);
+  font-family: Consolas, Monaco, "Cascadia Code", monospace;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.theme-banwu .card.block-card {
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  box-shadow: none;
+}
+.theme-banwu .banner.block-banner {
+  border-radius: 0;
+  background: #fff9f2;
+}
+.theme-banwu .code-wrapper {
+  border: 2px solid var(--ink);
+  border-radius: 0;
+}
+.theme-banwu .copy-btn {
+  border-radius: 0;
+}
+.theme-banwu .hud {
+  border: 1px solid var(--line-soft);
+  border-radius: 0;
+  background: rgba(250, 247, 241, 0.94);
+  box-shadow: none;
+}
+.theme-banwu .hud-btn {
+  border: 1px solid var(--ink);
+  border-radius: 0;
+  font-family: Consolas, Monaco, "Cascadia Code", monospace;
+}
+.theme-banwu .hud-btn:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
+.theme-banwu .cover-scrim {
+  background:
+    radial-gradient(ellipse at 18% 20%, rgba(232, 89, 12, 0.22), transparent 42%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.15) 0%, rgba(0, 0, 0, 0.55) 100%);
+}
+.theme-banwu .cover-badge {
+  border-color: var(--brand);
+  border-radius: 0;
+  background: var(--brand);
+  color: #ffffff;
+}
+.theme-banwu .cover-badge.alt {
+  border-color: rgba(232, 89, 12, 0.35);
+  background: rgba(232, 89, 12, 0.22);
+  color: #ffffff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; }
+}
+
+:root {
+  --paper: #faf7f1;
+  --ink: #16140f;
+  --ink-soft: #4a453e;
+  --ink-muted: #8c8477;
+  --accent: #e8590c;
+  --line: rgba(22, 20, 15, 0.14);
+  --line-soft: rgba(22, 20, 15, 0.28);
+  --stage: #0f1115;
+  --brand: #e8590c;
+  --brand-soft: rgba(232, 89, 12, 0.08);
+  --card-bg: #ffffff;
+  --green: #2b8a3e;
+  --red: #d9383a;
+  --amber: #e8590c;
+}
+
+/* submit-answer：作答提交组件。
+   外框复用引擎代码框样式（观感与 @code 代码块一致），本文件只管工具栏右侧、框内叠层与弹窗。
+   lint-allow-engine-classes: code-box, block-code */
+
+/* 工具栏（标题栏）整条做大：任务名是学生第一眼要认的标题 */
+.submit-answer .submit-answer-bar {
+  padding: 9px 15px;
+}
+
+.submit-answer .submit-answer-name {
+  text-transform: none;
+  letter-spacing: 1px;
+  font-size: clamp(13px, 1.1vw, 17px);
+  font-weight: 800;
+  color: var(--code-ink);
+}
+
+.submit-answer-right {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.submit-answer-state {
+  font-size: clamp(12px, 0.85vw, 13px);
+  font-weight: 700;
+  color: var(--code-ink);
+  opacity: 0.75;
+}
+
+.submit-answer[data-state="sending"] .submit-answer-state {
+  color: var(--code-ink);
+  opacity: 1;
+}
+
+.submit-answer[data-state="done"] .submit-answer-state {
+  color: var(--green);
+  opacity: 1;
+}
+
+.submit-answer[data-state="fail"] .submit-answer-state {
+  color: var(--red);
+  opacity: 1;
+}
+
+/* 提交按钮：整页唯一的行动点，做大做亮 + 轻微呼吸（好让后排也知道该点了） */
+.submit-answer-submit {
+  padding: 7px 19px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--brand);
+  color: var(--card-bg);
+  font: inherit;
+  font-size: clamp(12px, 1vw, 16px);
+  font-weight: 800;
+  letter-spacing: 1px;
+  cursor: pointer;
+  animation: submit-answer-pulse 2.6s ease-in-out infinite;
+  transition: filter 0.2s, background 0.2s;
+}
+
+@keyframes submit-answer-pulse {
+  0%, 100% { transform: scale(1); filter: brightness(1); }
+  50% { transform: scale(1.05); filter: brightness(1.2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .submit-answer-submit { animation: none; }
+}
+
+.submit-answer-submit:hover {
+  filter: brightness(1.2);
+}
+
+.submit-answer-submit:disabled {
+  opacity: 0.6;
+  cursor: default;
+  animation: none;
+}
+
+/* 没交的时候按钮就是红的：一眼看出这页有个任务等着交 */
+.submit-answer[data-state="idle"] .submit-answer-submit {
+  background: var(--red);
+}
+
+.submit-answer[data-state="idle"] .submit-answer-state {
+  opacity: 1;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+
+/* 提交中 / 已提交 / 失败都不再呼吸，避免抢视线 */
+.submit-answer[data-state="sending"] .submit-answer-submit,
+.submit-answer[data-state="done"] .submit-answer-submit,
+.submit-answer[data-state="fail"] .submit-answer-submit {
+  animation: none;
+}
+
+.submit-answer[data-state="done"] .submit-answer-submit {
+  border-color: var(--green);
+  background: var(--green);
+}
+
+.submit-answer[data-state="fail"] .submit-answer-submit {
+  border-color: var(--red);
+  background: var(--red);
+}
+
+/* 交完后才出现的学号小签：点一下能改（防第一次填错一串作业全错） */
+.submit-answer-sid {
+  padding: 4px 11px;
+  border: 1px solid var(--code-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--code-ink);
+  font: inherit;
+  font-size: clamp(12px, 1vw, 15px);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.submit-answer-sid:empty {
+  display: none;
+}
+
+.submit-answer-sid:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+/* 框体：padding 交给两层自己，grid 让 ghost 与 textarea 同宽同高、换行位置完全一致 */
+.code-box.submit-answer-box {
+  --submit-pad-y: 2vh;
+  --submit-pad-x: 1.8vw;
+  padding: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(100%, auto);
+}
+
+.submit-answer.block-code .submit-answer-box {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.submit-answer-ghost {
+  grid-area: 1 / 1;
+  min-width: 0;
+  /* 底边多留一点，保证 ghost 高度不小于 textarea 内容高度，末行不被裁 */
+  padding: var(--submit-pad-y) var(--submit-pad-x) calc(var(--submit-pad-y) + 4px);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+
+.submit-answer-ph {
+  color: var(--code-ink);
+  opacity: 0.42;
+}
+
+/* 高亮层是个 <pre>，会被引擎的全局元素规则 pre{background:var(--paper);border;padding;line-height}
+   接管 → 必须在每一项上显式复位，否则深色框里会浮出一块白底，且文字相对光标错位。 */
+.submit-answer-pre {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  overflow: visible;
+  background: transparent;
+  color: var(--code-ink);
+  font: inherit;
+  line-height: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+}
+
+.submit-answer-input {
+  grid-area: 1 / 1;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--submit-pad-y) var(--submit-pad-x);
+  border: 0;
+  outline: none;
+  overflow: hidden;
+  resize: none;
+  background: transparent;
+  /* 字是透明的前景色：看得见的是下层高亮，光标靠 caret-color */
+  color: transparent;
+  caret-color: var(--code-ink);
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+}
+
+.submit-answer-input::selection {
+  background: var(--brand);
+  opacity: 0.5;
+}
+
+/* 弹窗：只问一次学号，做小一点 */
+.submit-answer-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.submit-answer-modal[hidden] {
+  display: none;
+}
+
+.submit-answer-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--stage);
+  opacity: 0.6;
+}
+
+.submit-answer-dialog {
+  position: relative;
+  width: min(360px, 26vw);
+  padding: 2.4vh 1.8vw;
+  border-radius: var(--radius);
+  background: var(--card-bg);
+  box-shadow: 0 24px 60px var(--line-soft);
+  text-align: center;
+}
+
+.submit-answer-ask {
+  margin: 0 0 1.2vh;
+  font-size: clamp(16px, 1.35vw, 21px);
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.submit-answer-sid-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.5rem 0.8rem;
+  border: 2px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--paper);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: clamp(20px, 1.8vw, 28px);
+  font-weight: 800;
+  text-align: center;
+  letter-spacing: 0.08em;
+}
+
+.submit-answer-sid-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.submit-answer-error {
+  min-height: 1.3em;
+  margin: 0.6vh 0 0;
+  font-size: clamp(12px, 1vw, 14px);
+  font-weight: 700;
+  color: var(--red);
+}
+
+.submit-answer-acts {
+  display: flex;
+  justify-content: center;
+  gap: 0.8rem;
+  margin-top: 1vh;
+}
+
+.submit-answer-ok,
+.submit-answer-cancel {
+  padding: 0.35rem 1.6rem;
+  border-radius: 999px;
+  font: inherit;
+  font-size: clamp(14px, 1.1vw, 17px);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.submit-answer-ok {
+  border: 2px solid var(--accent);
+  background: var(--accent);
+  color: var(--card-bg);
+}
+
+.submit-answer-cancel {
+  border: 2px solid var(--line);
+  background: var(--card-bg);
+  color: var(--ink-muted);
+}
+
+.submit-answer-cancel:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+</style>
+</head>
+<body class="layout-base theme-embedded" oncontextmenu="return false">
+<div class="stage">
+<div class="deck" data-total="21" data-course="embedded" data-class="2507" data-date="2026-10-19 星期一" data-title="无源蜂鸣器 · 从&quot;响&quot;到&quot;唱一首歌&quot;">
+<section class="slide" id="p1" data-slide="1" data-total="21" data-layout="cover" data-ratio="50/50" data-has-text="false">
+<div class="cover">
+<h1>无源蜂鸣器 · 从&quot;响&quot;到&quot;唱一首歌&quot;</h1>
+<p class="cover-meta">Embedded · 2507 · 实训机房</p>
+<p class="cover-date">2026-10-19 星期一 · 第7周 课次1</p>
+</div>
+</section>
+<section class="slide" id="p2" data-slide="2" data-total="21" data-layout="cards-3" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>换个会"变调"的元件</h1><p class="kicker">前面几节课的灯只会亮和灭 —— 今天这个元件会<strong>唱歌</strong></p></header>
+<div class="slide-body"><div class="card block-card tone-green-solid"><h3>上次已经会的</h3>
+<p>· 装好 <strong>box.py</strong>，数码管会亮、会报数
+· <strong>外接按键</strong>接在 <strong>14 号口</strong>，按下能读到
+· PWM 早就会用（呼吸灯那一课）</p></div><div class="card block-card tone-amber"><h3>今天要做的</h3>
+<p>· 接上 <strong>23 号口</strong>，让它先响一声
+· 用 <strong>6 块积木</strong>从「响」一路唱到「一首歌」
+· 然后：<strong>自己编一首歌</strong> · <strong>写一盏节奏灯</strong> · 再加<strong>第二只蜂鸣器</strong></p></div><div class="card block-card tone-slate"><h3>今天的活（要交 5 份）</h3>
+<p>· <strong>积木 1～6</strong>：完整代码，抄 → 跑 → <strong>只改一处</strong>
+· <strong>五个框都给你预填好了开头</strong>：在框里改完、跑通 → 点<strong>提交</strong>
+· 分布在 <strong>P7</strong> 滑音 ｜ <strong>P11</strong> 编曲 ｜ <strong>P12</strong> 节奏灯 ｜ <strong>P14</strong> 轮流唱 ｜ <strong>P15</strong> 挑战</p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p3" data-slide="3" data-total="21" data-layout="stack" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>第一步 · 装 box.py</h1><p class="kicker">不用看懂。点代码框右上角「复制全部代码」→ 另存为 → <strong>MicroPython 设备</strong> → 名字写 <strong>box.py</strong></p></header>
+<div class="slide-body"><div class="banner block-banner info"><p>装过也要<strong>重装一遍</strong>：简谱写法今天更新了（数字前写 <code>-</code> 是低八度、写 <code>+</code> 是高八度），旧版不认这两个记号。</p></div><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-c"># box.py - ESP32 教学库（2507 班）—— 一块板子的常用件都在这儿</span>
+<span class="tok-c"># 适用平台: MicroPython (ESP32 / ESP32-C3)</span>
+<span class="tok-c">#</span>
+<span class="tok-c">#   LED      外接灯      LED(32)         板载蓝灯就用 LED(2)</span>
+<span class="tok-c">#   Button   按键        Button(0)       BOOT 键</span>
+<span class="tok-c">#   Touch    触摸脚      Touch(27)</span>
+<span class="tok-c">#   Buzzer   无源蜂鸣器  Buzzer(23)      play(简谱, beat=快慢)（两只就开两个实例：b1/b2）</span>
+<span class="tok-c">#   OLED     屏幕        OLED(16, 17)    没接也不报错</span>
+<span class="tok-c">#   TM1637   四位数码管  TM1637()        CLK=22  DIO=21</span>
+<span class="tok-c">#</span>
+<span class="tok-c"># 怎么用: 整份复制 → Thonny 另存为 → MicroPython 设备 → 名字写 box.py</span>
+<span class="tok-c"># 以后每个程序开头写一行:  from box import TM1637</span>
+
+<span class="tok-k">import</span> time
+<span class="tok-k">from</span> machine <span class="tok-k">import</span> Pin, SoftI2C
+<span class="tok-k">from</span> time <span class="tok-k">import</span> sleep_ms, sleep_us, ticks_ms
+<span class="tok-k">import</span> framebuf
+
+<span class="tok-k">from</span> machine <span class="tok-k">import</span> Pin, SoftI2C
+<span class="tok-k">import</span> framebuf
+
+<span class="tok-c"># ==================== 1. LED 控制类 ====================</span>
+<span class="tok-k">class</span> LED:
+    <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;LED 极简控制（默认 4 号引脚），支持开关、翻转、闪烁与调光&quot;</span><span class="tok-s">&quot;&quot;</span>
+    <span class="tok-k">def</span> __init__(self, pin=<span class="tok-n">4</span>):
+        self.pin_num = pin
+        self.io = Pin(pin, Pin.OUT)
+        self.pwm = <span class="tok-k">None</span>
+        self.state = <span class="tok-n">0</span>
+        self.off()
+
+    <span class="tok-k">def</span> on(self):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;点亮&quot;</span><span class="tok-s">&quot;&quot;</span>
+        self.state = <span class="tok-n">1</span>
+        <span class="tok-k">if</span> self.pwm:
+            self.pwm.duty_u16(<span class="tok-n">65535</span>)
+        <span class="tok-k">else</span>:
+            self.io.value(<span class="tok-n">1</span>)
+
+    <span class="tok-k">def</span> off(self):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;熄灭&quot;</span><span class="tok-s">&quot;&quot;</span>
+        self.state = <span class="tok-n">0</span>
+        <span class="tok-k">if</span> self.pwm:
+            self.pwm.duty_u16(<span class="tok-n">0</span>)
+        <span class="tok-k">else</span>:
+            self.io.value(<span class="tok-n">0</span>)
+
+    <span class="tok-k">def</span> toggle(self):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;状态翻转&quot;</span><span class="tok-s">&quot;&quot;</span>
+        <span class="tok-k">if</span> self.state:
+            self.off()
+        <span class="tok-k">else</span>:
+            self.on()
+
+    <span class="tok-k">def</span> bright(self, level):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;调光：level 取值 0~1000（0 全暗、1000 最亮）&quot;</span><span class="tok-s">&quot;&quot;</span>
+        <span class="tok-k">if</span> self.pwm <span class="tok-k">is</span> <span class="tok-k">None</span>:
+            <span class="tok-k">from</span> machine <span class="tok-k">import</span> PWM
+            self.pwm = PWM(Pin(self.pin_num), freq=<span class="tok-n">1000</span>, duty_u16=<span class="tok-n">0</span>)
+        <span class="tok-k">if</span> level &lt; <span class="tok-n">0</span>:
+            level = <span class="tok-n">0</span>
+        <span class="tok-k">if</span> level &gt; <span class="tok-n">1000</span>:
+            level = <span class="tok-n">1000</span>
+        self.state = <span class="tok-n">1</span> <span class="tok-k">if</span> level &gt; <span class="tok-n">0</span> <span class="tok-k">else</span> <span class="tok-n">0</span>
+        self.pwm.duty_u16(int(level * <span class="tok-n">65535</span> / <span class="tok-n">1000</span>))
+
+    <span class="tok-k">def</span> blink(self, times=<span class="tok-n">2</span>, delay=<span class="tok-n">0.15</span>):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;闪烁指定次数&quot;</span><span class="tok-s">&quot;&quot;</span>
+        <span class="tok-k">for</span> _ <span class="tok-k">in</span> range(times):
+            self.on()
+            time.sleep(delay)
+            self.off()
+            time.sleep(delay)
+
+<span class="tok-c"># ==================== 2. 按键控制类 ====================</span>
+<span class="tok-k">class</span> Button:
+    <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;按键控制（默认板载 BOOT 键 GPIO 0，按下返回 True）&quot;</span><span class="tok-s">&quot;&quot;</span>
+    <span class="tok-k">def</span> __init__(self, pin=<span class="tok-n">0</span>):
+        self.io = Pin(pin, Pin.IN, Pin.PULL_UP)
+
+    <span class="tok-k">def</span> is_pressed(self):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;判断是否按下&quot;</span><span class="tok-s">&quot;&quot;</span>
+        <span class="tok-k">return</span> self.io.value() == <span class="tok-n">0</span>
+
+<span class="tok-c"># ==================== 3. 触摸引脚类 ====================</span>
+<span class="tok-k">class</span> Touch:
+    <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;电容触摸控制（默认 27 号引脚，手指碰触返回 True）&quot;</span><span class="tok-s">&quot;&quot;</span>
+    <span class="tok-k">def</span> __init__(self, pin=<span class="tok-n">27</span>):
+        <span class="tok-k">from</span> machine <span class="tok-k">import</span> TouchPad
+        self.tp = TouchPad(Pin(pin))
+
+    <span class="tok-k">def</span> read(self):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;读取电容原始读数&quot;</span><span class="tok-s">&quot;&quot;</span>
+        <span class="tok-k">return</span> self.tp.read()
+
+    <span class="tok-k">def</span> is_touched(self, threshold=<span class="tok-n">300</span>):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;判断手指是否触碰&quot;</span><span class="tok-s">&quot;&quot;</span>
+        <span class="tok-k">return</span> self.tp.read() &lt; threshold
+
+<span class="tok-c"># 数字简谱：1~7 = 哆来咪发梭拉西，0 或空格 = 停一下</span>
+_SCALE = {
+    <span class="tok-s">&#x27;1&#x27;</span>: <span class="tok-n">262</span>, <span class="tok-s">&#x27;2&#x27;</span>: <span class="tok-n">294</span>, <span class="tok-s">&#x27;3&#x27;</span>: <span class="tok-n">330</span>, <span class="tok-s">&#x27;4&#x27;</span>: <span class="tok-n">349</span>,
+    <span class="tok-s">&#x27;5&#x27;</span>: <span class="tok-n">392</span>, <span class="tok-s">&#x27;6&#x27;</span>: <span class="tok-n">440</span>, <span class="tok-s">&#x27;7&#x27;</span>: <span class="tok-n">494</span>, <span class="tok-s">&#x27;0&#x27;</span>: <span class="tok-n">0</span>
+}
+
+
+<span class="tok-k">def</span> _notes_freq(notes):
+    <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;把一串简谱拆成频率表：数字前写 - 是低八度、写 + 是高八度。&quot;</span><span class="tok-s">&quot;&quot;</span>
+    out = []
+    i = <span class="tok-n">0</span>
+    s = str(notes)
+    <span class="tok-k">while</span> i &lt; len(s):
+        ch = s[i]
+        <span class="tok-k">if</span> ch <span class="tok-k">in</span> <span class="tok-s">&quot;+-&quot;</span> <span class="tok-k">and</span> i + <span class="tok-n">1</span> &lt; len(s):
+            f = _SCALE.get(s[i + <span class="tok-n">1</span>], <span class="tok-n">0</span>)
+            out.append(f * <span class="tok-n">2</span> <span class="tok-k">if</span> ch == <span class="tok-s">&quot;+&quot;</span> <span class="tok-k">else</span> f // <span class="tok-n">2</span>)
+            i += <span class="tok-n">2</span>
+        <span class="tok-k">else</span>:
+            out.append(_SCALE.get(ch, <span class="tok-n">0</span>))
+            i += <span class="tok-n">1</span>
+    <span class="tok-k">return</span> out
+
+
+<span class="tok-c"># ==================== 4. 蜂鸣器与旋律 ====================</span>
+<span class="tok-k">class</span> Buzzer:
+    <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;无源蜂鸣器（默认 23 号引脚）：频率决定音高，必须用 PWM 驱动&quot;</span><span class="tok-s">&quot;&quot;</span>
+    <span class="tok-k">def</span> __init__(self, pin=<span class="tok-n">23</span>):
+        self.pin_num = pin
+        self.pin = Pin(pin, Pin.OUT, value=<span class="tok-n">0</span>)
+
+    <span class="tok-k">def</span> tone(self, freq, duration=<span class="tok-n">0.15</span>):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;发声：freq = 频率（Hz，越大音越高），duration = 响多久（秒）&quot;</span><span class="tok-s">&quot;&quot;</span>
+        <span class="tok-k">if</span> freq &lt;= <span class="tok-n">0</span>:
+            time.sleep(duration)
+            <span class="tok-k">return</span>
+        <span class="tok-k">from</span> machine <span class="tok-k">import</span> PWM
+        p = PWM(self.pin, freq=int(freq), duty=<span class="tok-n">512</span>)   <span class="tok-c"># 512/1023 ≈ 一半，方波最响</span>
+        time.sleep(duration)
+        p.deinit()                                    <span class="tok-c"># 关掉 PWM</span>
+        self.pin.value(<span class="tok-n">0</span>)                             <span class="tok-c"># 引脚拉低，别一直带电</span>
+
+    <span class="tok-k">def</span> beep(self, times=<span class="tok-n">1</span>, delay=<span class="tok-n">0.1</span>):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;提示音哔哔声&quot;</span><span class="tok-s">&quot;&quot;</span>
+        <span class="tok-k">for</span> _ <span class="tok-k">in</span> range(times):
+            self.tone(<span class="tok-n">1000</span>, <span class="tok-n">0.08</span>)
+            time.sleep(delay)
+
+    <span class="tok-k">def</span> play(self, notes=<span class="tok-s">&quot;1231&quot;</span>, beat=<span class="tok-n">0.30</span>):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;播放数字简谱：1~7 = 哆来咪发梭拉西，0 或空格 = 停一下
+
+        数字前写 - 是低八度、写 + 是高八度（谱子上数字底下/上面的点）
+        beat = 每个音符多长（秒）：改大变慢，改小变快
+        &quot;</span><span class="tok-s">&quot;&quot;</span>
+        <span class="tok-k">for</span> f <span class="tok-k">in</span> _notes_freq(notes):
+            self.tone(f, beat * <span class="tok-n">0.8</span>)      <span class="tok-c"># 八成的拍子用来出声</span>
+            time.sleep(beat * <span class="tok-n">0.2</span>)        <span class="tok-c"># 剩下两成留白，两个音才分得开</span>
+
+
+<span class="tok-c"># ==================== 5. OLED 屏幕类 (防呆容错) ====================</span>
+<span class="tok-k">class</span> _SSD1306(framebuf.FrameBuffer):
+    <span class="tok-k">def</span> __init__(self, width, height, external_vcc):
+        self.width = width
+        self.height = height
+        self.external_vcc = external_vcc
+        self.pages = self.height // <span class="tok-n">8</span>
+        self.buffer = bytearray(self.pages * self.width)
+        super().__init__(self.buffer, self.width, self.height, framebuf.MONO_VLSB)
+
+    <span class="tok-k">def</span> show(self):
+        self.write_cmd(0x21)
+        self.write_cmd(<span class="tok-n">0</span>)
+        self.write_cmd(self.width - <span class="tok-n">1</span>)
+        self.write_cmd(0x22)
+        self.write_cmd(<span class="tok-n">0</span>)
+        self.write_cmd(self.pages - <span class="tok-n">1</span>)
+        self.write_data(self.buffer)
+
+<span class="tok-k">class</span> _SSD1306_I2C(_SSD1306):
+    <span class="tok-k">def</span> __init__(self, width, height, i2c, addr=0x3C, external_vcc=<span class="tok-k">False</span>):
+        self.i2c = i2c
+        self.addr = addr
+        self.temp = bytearray(<span class="tok-n">2</span>)
+        self.write_list = [b<span class="tok-s">&quot;\x40&quot;</span>, <span class="tok-k">None</span>]
+        super().__init__(width, height, external_vcc)
+        <span class="tok-k">for</span> cmd <span class="tok-k">in</span> (
+            0xAE, 0xD5, 0x80, 0xA8, self.height - <span class="tok-n">1</span>, 0xD3, 0x00,
+            0x40, 0x8D, 0x14, 0x20, 0x00, 0xA1, 0xC8, 0xDA,
+            0x12 <span class="tok-k">if</span> self.height == <span class="tok-n">64</span> <span class="tok-k">else</span> 0x02,
+            0x81, 0xCF, 0xD9, 0xF1, 0xDB, 0x40, 0xA4, 0xA6, 0xAF
+        ):
+            self.write_cmd(cmd)
+        self.fill(<span class="tok-n">0</span>)
+        self.show()
+
+    <span class="tok-k">def</span> write_cmd(self, cmd):
+        self.temp[<span class="tok-n">0</span>] = 0x80
+        self.temp[<span class="tok-n">1</span>] = cmd
+        self.i2c.writeto(self.addr, self.temp)
+
+    <span class="tok-k">def</span> write_data(self, buf):
+        self.write_list[<span class="tok-n">1</span>] = buf
+        self.i2c.writevto(self.addr, self.write_list)
+
+<span class="tok-k">class</span> OLED:
+    <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;OLED 屏幕（用法：oled = OLED(16, 17)；没接屏自动忽略、不打断其他实验）&quot;</span><span class="tok-s">&quot;&quot;</span>
+    <span class="tok-k">def</span> __init__(self, scl=<span class="tok-n">16</span>, sda=<span class="tok-n">17</span>, width=<span class="tok-n">128</span>, height=<span class="tok-n">64</span>):
+        self.ok = <span class="tok-k">False</span>
+        self.screen = <span class="tok-k">None</span>
+        <span class="tok-k">try</span>:
+            self.i2c = SoftI2C(scl=Pin(scl), sda=Pin(sda), freq=<span class="tok-n">100000</span>, timeout=<span class="tok-n">50000</span>)
+            devs = self.i2c.scan()
+            addr = 0x3C <span class="tok-k">if</span> (0x3C <span class="tok-k">in</span> devs <span class="tok-k">or</span> <span class="tok-n">60</span> <span class="tok-k">in</span> devs) <span class="tok-k">else</span> (0x3D <span class="tok-k">if</span> (0x3D <span class="tok-k">in</span> devs <span class="tok-k">or</span> <span class="tok-n">61</span> <span class="tok-k">in</span> devs) <span class="tok-k">else</span> <span class="tok-k">None</span>)
+            <span class="tok-k">if</span> addr:
+                self.screen = _SSD1306_I2C(width, height, self.i2c, addr=addr)
+                self.ok = <span class="tok-k">True</span>
+                print(<span class="tok-s">&quot;[OLED] 屏幕连接成功&quot;</span>)
+            <span class="tok-k">else</span>:
+                print(<span class="tok-s">&quot;[OLED 提示] 未检测到屏幕（不影响LED与其他实验运行）&quot;</span>)
+        <span class="tok-k">except</span> Exception:
+            print(<span class="tok-s">&quot;[OLED 提示] 屏幕暂未接入&quot;</span>)
+
+    <span class="tok-k">def</span> clear(self):
+        <span class="tok-k">if</span> self.ok <span class="tok-k">and</span> self.screen:
+            <span class="tok-k">try</span>:
+                self.screen.fill(<span class="tok-n">0</span>)
+                self.screen.show()
+            <span class="tok-k">except</span> Exception:
+                <span class="tok-k">pass</span>
+
+    <span class="tok-k">def</span> display(self, line1=<span class="tok-s">&quot;&quot;</span>, line2=<span class="tok-s">&quot;&quot;</span>, line3=<span class="tok-s">&quot;&quot;</span>, line4=<span class="tok-s">&quot;&quot;</span>):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;一键全刷屏显示最多 4 行文字&quot;</span><span class="tok-s">&quot;&quot;</span>
+        <span class="tok-k">if</span> self.ok <span class="tok-k">and</span> self.screen:
+            <span class="tok-k">try</span>:
+                self.screen.fill(<span class="tok-n">0</span>)
+                <span class="tok-k">for</span> idx, content <span class="tok-k">in</span> enumerate([line1, line2, line3, line4]):
+                    <span class="tok-k">if</span> content:
+                        self.screen.text(str(content), <span class="tok-n">0</span>, idx * <span class="tok-n">16</span>, <span class="tok-n">1</span>)
+                self.screen.show()
+            <span class="tok-k">except</span> Exception:
+                <span class="tok-k">pass</span>
+
+
+<span class="tok-c"># ==================== 6. 四位数码管 TM1637 ====================</span>
+_CHARS = {
+    <span class="tok-s">&#x27;0&#x27;</span>: 0x3F, <span class="tok-s">&#x27;1&#x27;</span>: 0x06, <span class="tok-s">&#x27;2&#x27;</span>: 0x5B, <span class="tok-s">&#x27;3&#x27;</span>: 0x4F, <span class="tok-s">&#x27;4&#x27;</span>: 0x66,
+    <span class="tok-s">&#x27;5&#x27;</span>: 0x6D, <span class="tok-s">&#x27;6&#x27;</span>: 0x7D, <span class="tok-s">&#x27;7&#x27;</span>: 0x07, <span class="tok-s">&#x27;8&#x27;</span>: 0x7F, <span class="tok-s">&#x27;9&#x27;</span>: 0x6F,
+    <span class="tok-s">&#x27;A&#x27;</span>: 0x77, <span class="tok-s">&#x27;B&#x27;</span>: 0x7C, <span class="tok-s">&#x27;C&#x27;</span>: 0x39, <span class="tok-s">&#x27;D&#x27;</span>: 0x5E, <span class="tok-s">&#x27;E&#x27;</span>: 0x79, <span class="tok-s">&#x27;F&#x27;</span>: 0x71,
+    <span class="tok-s">&#x27;G&#x27;</span>: 0x3D, <span class="tok-s">&#x27;H&#x27;</span>: 0x76, <span class="tok-s">&#x27;J&#x27;</span>: 0x1E, <span class="tok-s">&#x27;L&#x27;</span>: 0x38, <span class="tok-s">&#x27;N&#x27;</span>: 0x37, <span class="tok-s">&#x27;O&#x27;</span>: 0x3F,
+    <span class="tok-s">&#x27;P&#x27;</span>: 0x73, <span class="tok-s">&#x27;R&#x27;</span>: 0x50, <span class="tok-s">&#x27;T&#x27;</span>: 0x78, <span class="tok-s">&#x27;U&#x27;</span>: 0x3E, <span class="tok-s">&#x27;Y&#x27;</span>: 0x6E,
+    <span class="tok-s">&#x27; &#x27;</span>: 0x00, <span class="tok-s">&#x27;-&#x27;</span>: 0x40, <span class="tok-s">&#x27;_&#x27;</span>: 0x08,
+}
+
+COLON_INDEX = <span class="tok-n">1</span>      <span class="tok-c"># 中间那个冒号挂在第 2 位上；屏上冒号位置不对就改这里</span>
+
+
+<span class="tok-k">class</span> TM1637:
+    <span class="tok-k">def</span> __init__(self, clk=<span class="tok-n">22</span>, dio=<span class="tok-n">21</span>, brightness=<span class="tok-n">5</span>):
+        self._delay = <span class="tok-n">5</span>          <span class="tok-c"># 微秒；屏闪烁或显示乱码就把这个数加大</span>
+        self._clk = Pin(clk, Pin.OUT, value=<span class="tok-n">1</span>)
+        self._dio = Pin(dio, Pin.OUT, value=<span class="tok-n">1</span>)
+        self._brightness = brightness &amp; 0x07
+        self._buf = bytearray(<span class="tok-n">4</span>)
+
+    <span class="tok-c"># ---------- 协议层（不用管，想看懂看课件最后一页） ----------</span>
+    <span class="tok-k">def</span> _start(self):
+        self._clk(<span class="tok-n">1</span>)
+        self._dio(<span class="tok-n">1</span>)
+        sleep_us(self._delay)
+        self._dio(<span class="tok-n">0</span>)
+        sleep_us(self._delay)
+        self._clk(<span class="tok-n">0</span>)
+        sleep_us(self._delay)
+
+    <span class="tok-k">def</span> _stop(self):
+        self._clk(<span class="tok-n">0</span>)
+        self._dio(<span class="tok-n">0</span>)
+        sleep_us(self._delay)
+        self._clk(<span class="tok-n">1</span>)
+        sleep_us(self._delay)
+        self._dio(<span class="tok-n">1</span>)
+        sleep_us(self._delay)
+
+    <span class="tok-k">def</span> _write_byte(self, b):
+        <span class="tok-k">for</span> _ <span class="tok-k">in</span> range(<span class="tok-n">8</span>):
+            self._dio(b &amp; <span class="tok-n">1</span>)
+            sleep_us(self._delay)
+            self._clk(<span class="tok-n">1</span>)
+            sleep_us(self._delay)
+            self._clk(<span class="tok-n">0</span>)
+            sleep_us(self._delay)
+            b &gt;&gt;= <span class="tok-n">1</span>
+        <span class="tok-c"># 把 DIO 放开收 ACK：从机把它拉低 = 应答</span>
+        self._dio.init(Pin.IN, Pin.PULL_UP)
+        self._clk(<span class="tok-n">1</span>)
+        sleep_us(self._delay)
+        ack = <span class="tok-k">not</span> self._dio.value()
+        self._clk(<span class="tok-n">0</span>)
+        sleep_us(self._delay)
+        self._dio.init(Pin.OUT, value=<span class="tok-n">1</span>)
+        <span class="tok-k">return</span> ack
+
+    <span class="tok-k">def</span> _send(self, data):
+        self._start()
+        ok = <span class="tok-k">True</span>
+        <span class="tok-k">for</span> b <span class="tok-k">in</span> data:
+            <span class="tok-k">if</span> <span class="tok-k">not</span> self._write_byte(b):
+                ok = <span class="tok-k">False</span>
+        self._stop()
+        <span class="tok-k">return</span> ok
+
+    <span class="tok-c"># ---------- 你要用的部分 ----------</span>
+    <span class="tok-k">def</span> flush(self):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;把缓冲区写到屏上；返回 True = 屏应答了。&quot;</span><span class="tok-s">&quot;&quot;</span>
+        a = self._send((0x40,))                            <span class="tok-c"># 数据命令：写显存，地址自增</span>
+        b = self._send((0xC0,) + tuple(self._buf))          <span class="tok-c"># 从地址 0 写 4 个段码</span>
+        c = self._send((0x88 | self._brightness,))          <span class="tok-c"># 显示开 + 亮度</span>
+        <span class="tok-k">return</span> a <span class="tok-k">and</span> b <span class="tok-k">and</span> c
+
+    <span class="tok-k">def</span> show(self, text, colon=<span class="tok-k">False</span>):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;显示文字：最多 4 个字符，靠右对齐；colon=True 时中间冒号亮。&quot;</span><span class="tok-s">&quot;&quot;</span>
+        text = str(text)
+        buf = bytearray(<span class="tok-n">4</span>)
+        i = <span class="tok-n">4</span>
+        <span class="tok-k">for</span> ch <span class="tok-k">in</span> reversed(text[-<span class="tok-n">4</span>:]):
+            i -= <span class="tok-n">1</span>
+            buf[i] = _CHARS.get(ch.upper(), 0x00)
+        <span class="tok-k">if</span> colon:
+            buf[COLON_INDEX] |= 0x80
+        self._buf = buf
+        <span class="tok-k">return</span> self.flush()
+
+    <span class="tok-k">def</span> number(self, n):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;显示一个数字，靠右对齐；最大 9999。&quot;</span><span class="tok-s">&quot;&quot;</span>
+        n = int(n)
+        <span class="tok-k">if</span> n &gt; <span class="tok-n">9999</span>:
+            n = <span class="tok-n">9999</span>
+        <span class="tok-k">if</span> n &lt; <span class="tok-n">0</span>:
+            n = <span class="tok-n">0</span>
+        <span class="tok-k">return</span> self.show(str(n))
+
+    <span class="tok-k">def</span> time(self, hour, minute, colon=<span class="tok-k">True</span>):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;显示 时:分（自动补零，例：9 点 5 分 → 0905）。&quot;</span><span class="tok-s">&quot;&quot;</span>
+        <span class="tok-k">return</span> self.show(<span class="tok-s">&quot;%02d%02d&quot;</span> % (int(hour) % <span class="tok-n">24</span>, int(minute) % <span class="tok-n">60</span>), colon)
+
+    <span class="tok-k">def</span> mmss(self, secs, running=<span class="tok-k">None</span>):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;显示 分:秒（最大 99:59）。
+
+        running=True  → 冒号常亮（在走）
+        running=False → 冒号一闪一闪（暂停了）
+        不传          → 冒号常亮
+        &quot;</span><span class="tok-s">&quot;&quot;</span>
+        secs = int(secs)
+        <span class="tok-k">if</span> secs &gt; <span class="tok-n">5999</span>:
+            secs = <span class="tok-n">5999</span>
+        <span class="tok-k">if</span> secs &lt; <span class="tok-n">0</span>:
+            secs = <span class="tok-n">0</span>
+        <span class="tok-k">if</span> running <span class="tok-k">is</span> <span class="tok-k">None</span>:
+            colon = <span class="tok-k">True</span>
+        <span class="tok-k">elif</span> running:
+            colon = <span class="tok-k">True</span>
+        <span class="tok-k">else</span>:
+            colon = (ticks_ms() // <span class="tok-n">500</span>) % <span class="tok-n">2</span> == <span class="tok-n">0</span>
+        <span class="tok-k">return</span> self.show(<span class="tok-s">&quot;%02d%02d&quot;</span> % (secs // <span class="tok-n">60</span>, secs % <span class="tok-n">60</span>), colon)
+
+    <span class="tok-k">def</span> clear(self):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;清空屏幕。&quot;</span><span class="tok-s">&quot;&quot;</span>
+        self._buf = bytearray(<span class="tok-n">4</span>)
+        <span class="tok-k">return</span> self.flush()
+
+    <span class="tok-k">def</span> brightness(self, level):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;调亮度：0（最暗）~ 7（最亮）。&quot;</span><span class="tok-s">&quot;&quot;</span>
+        self._brightness = level &amp; 0x07
+        <span class="tok-k">return</span> self._send((0x88 | self._brightness,))
+
+    <span class="tok-k">def</span> selftest(self):
+        <span class="tok-s">&quot;&quot;</span><span class="tok-s">&quot;全亮自检：亮一下 8888 + 冒号，返回 True = 接上了。&quot;</span><span class="tok-s">&quot;&quot;</span>
+        ok = self.show(<span class="tok-s">&quot;8888&quot;</span>, colon=<span class="tok-k">True</span>)
+        sleep_ms(<span class="tok-n">800</span>)
+        <span class="tok-k">return</span> ok</code></pre>
+</div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p4" data-slide="4" data-total="21" data-layout="cards-2" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>无源蜂鸣器：两根线，它会唱歌</h1></header>
+<div class="slide-body"><div class="banner block-banner alert"><p>先断电再插线，插完<strong>先报告检查</strong>、再插 USB。<strong>别接 5V</strong> —— 板上写着 5V 的那只脚是留给别的用的。</p></div><div class="card block-card tone-green-solid"><h3>它为什么能唱歌</h3>
+<p>· 里面只有一片<strong>金属片</strong>：你让它每秒振多少次，它就唱多高
+· <code>tone(262)</code> 是「哆」、<code>tone(440)</code> 是「拉」—— <strong>改数字就换调</strong>
+· 通电只「咔」一声、不连着响，就是无源蜂鸣器<strong>正常的样子</strong></p></div><div class="card block-card tone-amber"><h3>怎么接（两只脚，两根线）</h3>
+<p>· 带 <code>+</code> 号的那只脚 → <strong>23 号口</strong>（板上丝印 <code>P23</code>）
+· 另一只脚 → <strong>GND</strong>
+· 插不稳就先插进面包板，两只脚<strong>分占不同列</strong></p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p5" data-slide="5" data-total="21" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>积木 1 · 先让它响</h1><p class="kicker">一句话就够：<strong>给喇叭一个频率，它就振动发声</strong></p></header>
+<div class="slide-body"><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-k">from</span> box <span class="tok-k">import</span> Buzzer
+<span class="tok-k">from</span> time <span class="tok-k">import</span> sleep
+
+b = Buzzer(<span class="tok-n">23</span>)        <span class="tok-c"># 无源蜂鸣器接在 23 号口</span>
+
+<span class="tok-k">while</span> <span class="tok-k">True</span>:
+    b.tone(<span class="tok-n">440</span>, <span class="tok-n">0.2</span>)  <span class="tok-c"># 让 23 号口每秒振 440 次，响 0.2 秒</span>
+    sleep(<span class="tok-n">1</span>)          <span class="tok-c"># 停 1 秒，再来</span></code></pre>
+</div><div class="card block-card tone-green-solid"><h3>做出来</h3>
+<p>· 每秒「嘀」一声，<strong>均匀地响下去</strong>
+· 一点声音都没有 → 别慌，翻 <strong>P17 排错页</strong></p></div><div class="card block-card tone-amber"><h3>只改一处</h3>
+<p>· 把 <code>0.2</code> 改成 <code>0.8</code> —— 声音变<strong>长</strong>还是变<strong>短</strong>？</p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p6" data-slide="6" data-total="21" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>积木 2 · 换数字，换音高</h1><p class="kicker"><code>tone( )</code> 里那个数字<strong>就是音高</strong> —— 数字越大，音越尖</p></header>
+<div class="slide-body"><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-k">from</span> box <span class="tok-k">import</span> Buzzer
+<span class="tok-k">from</span> time <span class="tok-k">import</span> sleep
+
+b = Buzzer(<span class="tok-n">23</span>)
+<span class="tok-k">while</span> <span class="tok-k">True</span>:
+    b.tone(<span class="tok-n">262</span>, <span class="tok-n">0.4</span>)  <span class="tok-c"># 262 = 低的「哆」</span>
+    sleep(<span class="tok-n">0.2</span>)
+    b.tone(<span class="tok-n">440</span>, <span class="tok-n">0.4</span>)  <span class="tok-c"># 440 = 高的「拉」</span>
+    sleep(<span class="tok-n">0.2</span>)
+    b.tone(<span class="tok-n">880</span>, <span class="tok-n">0.4</span>)  <span class="tok-c"># 880 = 又高一倍，刺耳</span>
+    sleep(<span class="tok-n">1</span>)</code></pre>
+</div><div class="card block-card tone-amber"><h3>改一处</h3>
+<p>· <code>880</code> 改成 <code>1046</code>（更高）
+· <code>262</code> 改成 <code>196</code>（更低）</p></div><div class="card block-card tone-slate"><h3>数字 = 每秒振多少次</h3>
+<p>· 数字翻一倍，<strong>音就高一倍</strong>（880 正好是 440 的两倍）</p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p7" data-slide="7" data-total="21" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>练习 · 滑音警笛</h1><p class="kicker">不用新元件 —— <strong>把音高当变量</strong>，在<strong>框里</strong>补 2 个空，跑通就交</p></header>
+<div class="slide-body"><div class="demo" data-demo="submit-answer" data-payload="{&quot;assignment&quot;: &quot;滑音警笛&quot;, &quot;kind&quot;: &quot;code&quot;, &quot;placeholder&quot;: &quot;把两个 ____ 换成你要的答案，跑通了再交&quot;, &quot;prefill&quot;: &quot;from box import Buzzer\nfrom time import sleep\n\nb = Buzzer(23)\nf = 200                 # 起始音高\nwhile True:             # 一直往上抬\n    b.tone(f, 0.05)     # 叫一声\n    f = f + ____        # 空1：每次抬多少？数字越大，抬得越快\n    if f &gt; 1000:        # 抬到 1000 以上\n        ____            # 空2：不玩了（b 开头的 5 个字母）\nb.tone(1200, 0.5)       # 到顶了，补一声长的\n&quot;, &quot;base&quot;: &quot;&quot;}"></div><div class="card block-card tone-green-solid"><h3>做出来（这一项要交）</h3>
+<p>· 声音<strong>从低一路滑到高</strong>，像警笛
+· 到顶就<strong>停住</strong>，最后补一声长音
+· 改完先自己在板子上<strong>跑通</strong>，再点框右边的<strong>提交</strong></p></div><div class="card block-card tone-amber"><h3>两个空</h3>
+<p>· 空1：试 <code>20</code> 和 <code>100</code> —— 哪个更像警笛？慢点更好听
+· 空2：<code>break</code> = <strong>从循环里跳出来</strong>；跳出后，循环外面那句照常执行</p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p8" data-slide="8" data-total="21" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>积木 3 · 板子里的音阶</h1><p class="kicker">不用背频率 —— <code>play( )</code> 里直接写<strong>简谱数字</strong></p></header>
+<div class="slide-body"><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-k">from</span> box <span class="tok-k">import</span> Buzzer
+<span class="tok-k">from</span> time <span class="tok-k">import</span> sleep
+
+b = Buzzer(<span class="tok-n">23</span>)
+
+b.play(<span class="tok-s">&quot;1234567&quot;</span>)     <span class="tok-c"># 1~7 = 哆来咪发梭拉西，一路上去</span>
+sleep(<span class="tok-n">1</span>)
+b.play(<span class="tok-s">&quot;7654321&quot;</span>)     <span class="tok-c"># 再从高走回低</span></code></pre>
+</div><div class="card block-card tone-slate"><h3>简谱对照表（对着 P6 的数字看）</h3>
+<p>· <code>1</code> 哆 = 262 ｜ <code>2</code> 来 = 294 ｜ <code>3</code> 咪 = 330 ｜ <code>4</code> 发 = 349
+· <code>5</code> 梭 = 392 ｜ <code>6</code> 拉 = 440 ｜ <code>7</code> 西 = 494
+· <code>0</code> 或<strong>空格</strong> = 停一下
+· 数字前加 <code>-</code> = <strong>低八度</strong>、加 <code>+</code> = <strong>高八度</strong>（书上数字底下的点）</p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p9" data-slide="9" data-total="21" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>积木 4 · 唱一首歌</h1><p class="kicker">一串数字就是一首歌 —— <strong>空格</strong>当换气</p></header>
+<div class="slide-body"><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-k">from</span> box <span class="tok-k">import</span> Buzzer
+
+b = Buzzer(<span class="tok-n">23</span>)
+
+<span class="tok-c"># 《两只老虎》的简谱：空格 = 停一下（换气）</span>
+b.play(<span class="tok-s">&quot;1231 1231 345 345 565431 565431 151 151&quot;</span>)</code></pre>
+</div><div class="card block-card tone-green-solid"><h3>做出来</h3>
+<p>· 板子把《两只老虎》<strong>从头唱到尾</strong>（约 12 秒）</p></div><div class="card block-card tone-amber"><h3>改一处</h3>
+<p>· 把歌里<strong>所有的 <code>3</code> 都改成 <code>4</code></strong>，跑一遍 —— 变成什么味道了？
+· 想换歌：把引号里的数字换成你会的一首简谱（下一页教你怎么要谱子）</p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p10" data-slide="10" data-total="21" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>积木 5 · 快慢由 beat 说了算</h1><p class="kicker">同一首歌，<code>beat</code> 大 = 慢，<code>beat</code> 小 = 快</p></header>
+<div class="slide-body"><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-k">from</span> box <span class="tok-k">import</span> Buzzer
+<span class="tok-k">from</span> time <span class="tok-k">import</span> sleep
+
+b = Buzzer(<span class="tok-n">23</span>)
+b.play(<span class="tok-s">&quot;1231 1231&quot;</span>, beat=<span class="tok-n">0.5</span>)    <span class="tok-c"># 慢：每个音 0.5 秒</span>
+sleep(<span class="tok-n">1</span>)
+b.play(<span class="tok-s">&quot;1231 1231&quot;</span>, beat=<span class="tok-n">0.12</span>)   <span class="tok-c"># 快：每个音 0.12 秒</span></code></pre>
+</div><div class="card block-card tone-green-solid"><h3>做出来</h3>
+<p>· 先慢唱一遍，再快唱一遍 —— 同一句，<strong>两种感觉</strong></p></div><div class="card block-card tone-amber"><h3>改一处</h3>
+<p>· <code>beat=0.5</code> 改成 <code>0.05</code> —— 像<strong>报警器</strong>了吗？（别超过 1）</p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p11" data-slide="11" data-total="21" data-layout="code-split-reverse" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>练习 1 · 编一首你自己的歌</h1><p class="kicker"><strong>谱子问 AI 要</strong> —— 右边那段话整段复制过去，拿到的数字填进<strong>左边框</strong>里、交上来</p></header>
+<div class="slide-body"><div class="demo" data-demo="submit-answer" data-payload="{&quot;assignment&quot;: &quot;我的歌&quot;, &quot;kind&quot;: &quot;code&quot;, &quot;placeholder&quot;: &quot;把 AI 给你的那串数字填进引号里，跑通了再交&quot;, &quot;prefill&quot;: &quot;from box import Buzzer\nfrom time import sleep\n\nb = Buzzer(23)\n\n# ↓↓↓ 把 AI 给你的那串数字填进下面这两个引号里 ↓↓↓\nb.play(\&quot;\&quot;)\n&quot;, &quot;base&quot;: &quot;&quot;}"></div><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">复制这段话给 AI</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code>我在 MicroPython 板子上用蜂鸣器放歌，
+程序里只能填一串数字，写法只有这几种：
+1 2 3 4 5 6 7 = 哆来咪发梭拉西
+0 = 停一下（休止）
+数字前面写 - 是低八度，写 + 是高八度
+简谱上的横线、附点、连音符、下划线都用不了，
+节奏我自己数。
+
+请把《两只老虎》写成这种数字串，20~30 个音。
+只要这一串数字，不要代码、不要字母、不要解释。</code></pre>
+</div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p12" data-slide="12" data-total="21" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>练习 2 · 节奏灯（自己写）</h1><p class="kicker">只给你灯的三种用法 —— <strong>代码全篇你自己写</strong>，这是今天要交的那份</p></header>
+<div class="slide-body"><div class="demo" data-demo="submit-answer" data-payload="{&quot;assignment&quot;: &quot;节奏灯&quot;, &quot;kind&quot;: &quot;code&quot;, &quot;placeholder&quot;: &quot;把你自己写的节奏灯代码写/粘到这里&quot;, &quot;prefill&quot;: &quot;# 你自己的节奏灯：至少两种不同的间隔（一短一长），灯才会\&quot;有节奏\&quot;\nfrom box import LED\nfrom time import sleep\n\nled = LED(2)      # 板载蓝灯；想用外接灯就写 LED(32)\n\n# ↓↓↓ 下面全是你自己写\n&quot;, &quot;base&quot;: &quot;&quot;}"></div><div class="card block-card tone-green-solid"><h3>动手做（全篇自己写）</h3>
+<p>· <strong>题目</strong>：做一盏<strong>你自己的节奏灯</strong> —— 灯按你定的节拍闪起来（咚 咚 啪）
+· ① 先定节奏：<strong>几短几长</strong>？在纸上写下来（例：短短长）
+· ② 框里已经替你起了个头（灯怎么开关）—— 剩下的<strong>全是你自己写</strong>
+· ③ 跑通 → 给组长看现象 → 点框右边的<strong>提交</strong></p></div><div class="card block-card tone-amber"><h3>素材与加分</h3>
+<p>· 要用外接那盏灯，就写 <code>LED(32)</code>（第 5 课接的）
+· <strong>加分</strong>：一边 <code>b.play()</code> 放歌、一边让灯跟着歌的<strong>拍子</strong>闪（歌见 <strong>P9</strong>）</p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p13" data-slide="13" data-total="21" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>积木 6 · 第二只蜂鸣器：你一句我一句</h1><p class="kicker">第二只接 <strong>25 号口</strong> —— 两只"嗓子"各是一个对象：<code>b1</code> 管 23 号口，<code>b2</code> 管 25 号口</p></header>
+<div class="slide-body"><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-k">from</span> box <span class="tok-k">import</span> Buzzer
+<span class="tok-k">from</span> time <span class="tok-k">import</span> sleep
+
+b1 = Buzzer(<span class="tok-n">23</span>)        <span class="tok-c"># 第一只，接 23 号口</span>
+b2 = Buzzer(<span class="tok-n">25</span>)        <span class="tok-c"># 第二只，接 25 号口</span>
+
+<span class="tok-k">while</span> <span class="tok-k">True</span>:
+    b1.tone(<span class="tok-n">262</span>, <span class="tok-n">0.3</span>)  <span class="tok-c"># 你一句（第一只）</span>
+    b2.tone(<span class="tok-n">330</span>, <span class="tok-n">0.3</span>)  <span class="tok-c"># 我一句（第二只）</span>
+    sleep(<span class="tok-n">0.6</span>)
+    b1.play(<span class="tok-s">&quot;1231&quot;</span>)    <span class="tok-c"># 第一只唱一句歌</span>
+    b2.play(<span class="tok-s">&quot;345&quot;</span>)     <span class="tok-c"># 第二只接下一句</span>
+    sleep(<span class="tok-n">1</span>)</code></pre>
+</div><div class="card block-card tone-amber"><h3>第二只怎么接</h3>
+<p>· 带 <code>+</code> 的脚 → <strong>25 号口</strong>（丝印 <code>P25</code>），另一只脚 → <strong>GND</strong>
+· 两只<strong>不能插在同一个脚</strong>上；GND 可以共用一排
+· 老规矩：<strong>先断电再插线</strong>，插完先报告检查</p></div><div class="card block-card tone-green-solid"><h3>做出来</h3>
+<p>· 两只<strong>一前一后</strong>地叫 —— 你一句我一句（不是同时响）
+· 给谁 <code>tone()</code> / <code>play()</code> 就是谁在响，<code>b1</code> 和 <code>b2</code> 别写混
+· 只改一处：<code>b2.tone(330, …)</code> 的 <code>330</code> 改成 <code>196</code> → 第二只变<strong>低音</strong>，像两个人在对话</p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p14" data-slide="14" data-total="21" data-layout="code-split" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>练习 3 · 两只轮流唱</h1><p class="kicker">两只蜂鸣器一唱一和：第一只慢唱一句，第二只<strong>快快地</strong>跟一遍，补 2 个空</p></header>
+<div class="slide-body"><div class="demo" data-demo="submit-answer" data-payload="{&quot;assignment&quot;: &quot;轮流唱&quot;, &quot;kind&quot;: &quot;code&quot;, &quot;placeholder&quot;: &quot;把两个 ____ 换成你的答案，跑通了再交&quot;, &quot;prefill&quot;: &quot;from box import Buzzer\nfrom time import sleep\n\nb1 = Buzzer(23)               # 第一只：23 号口\nb2 = Buzzer(25)               # 第二只：25 号口\n\nb1.play(\&quot;1231\&quot;, beat=0.5)     # 第一只慢慢唱《两只老虎》第一句\nb2.play(\&quot;____\&quot;, beat=____)    # 空1：第二只接着唱同一句 ｜ 空2：让它快一倍\nsleep(0.5)\nb1.play(\&quot;345\&quot;, beat=0.5)      # 第一只唱「跑得快」\nb2.play(\&quot;345\&quot;, beat=0.5)      # 第二只跟一遍 —— 一前一后，像回声\n&quot;, &quot;base&quot;: &quot;&quot;}"></div><div class="card block-card tone-green-solid"><h3>做出来（这一项要交）</h3>
+<p>· 第一只慢慢唱，第二只<strong>快一倍</strong>跟同一句 → 像回声
+· 后面两句两只各来一遍，你一句我一句
+· 补完两个空、跑通 → 点框右边的<strong>提交</strong></p></div><div class="card block-card tone-amber"><h3>两个空怎么想</h3>
+<p>· 空1：第二只唱<strong>同一句</strong> —— 就是第一只刚唱过的那串数字
+· 空2：<code>beat</code> 越小越快（回头看看 <strong>P10</strong>）—— 快一倍就是 0.5 <strong>除以 2</strong></p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p15" data-slide="15" data-total="21" data-layout="stack" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>挑战任务 · 两只轮流唱 + 双灯</h1><p class="kicker">四个东西拼一起：<strong>两只蜂鸣器 + 两只灯</strong>，谁在唱谁的灯就亮。做出来加分</p></header>
+<div class="slide-body"><div class="demo" data-demo="submit-answer" data-payload="{&quot;assignment&quot;: &quot;挑战&quot;, &quot;kind&quot;: &quot;code&quot;, &quot;placeholder&quot;: &quot;把两个 ____ 换成你的答案，跑通了再交（加分）&quot;, &quot;prefill&quot;: &quot;from box import Buzzer, LED\nfrom time import sleep\n\nb1 = Buzzer(23)      # 第一只蜂鸣器\nb2 = Buzzer(25)      # 第二只蜂鸣器\nled1 = LED(2)        # 板载蓝灯\nled2 = LED(32)       # 外接灯\nwhile True:\n    b1.play(\&quot;1231\&quot;)  # 第一只唱一句\n    led1.on()        # 蓝灯亮：轮到第一只\n    led2.off()\n    b2.play(____)    # 空1：第二只接下一句（P9 有整首）\n    led1.off()       # 蓝灯灭\n    led2.____        # 空2：外接灯这时候该是？\n&quot;, &quot;base&quot;: &quot;&quot;}"></div><div class="card block-card tone-green-solid"><h3>怎么做（加分项 —— 做出来就交）</h3>
+<p>· 空1：第二只接<strong>下一句歌</strong>（第一句是 <code>1231</code>，下一句是什么？<strong>P9</strong> 有整首）
+· 空2：照上面 <code>led1.on()</code> / <code>led2.off()</code> 那两行想 —— 第一只唱时蓝灯亮，第二只唱时该谁亮？
+· 补完点<strong>提交</strong>；组长看现象：<strong>两只轮流唱 + 两盏灯轮流亮</strong>
+· 想更难：让第二只用<strong>低八度</strong>唱（数字前加 <code>-</code>，如 <code>"-3-4-5"</code>），像两个人声音不一样</p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p16" data-slide="16" data-total="21" data-layout="cards-2" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>今天要交 5 份 · 交之前自查</h1><p class="kicker"><strong>每个框都预填好了开头</strong> —— 在框里改完、<strong>在板子上跑通</strong>，点框右边的「提交」</p></header>
+<div class="slide-body"><div class="card block-card tone-green-solid"><h3>今天交这些（第一次会问你学号，只问一次）</h3>
+<p>· <strong>P7 滑音警笛</strong> ｜ <strong>P11 编曲的歌</strong> ｜ <strong>P12 节奏灯</strong> ｜ <strong>P14 轮流唱</strong>
+· <strong>P15 挑战</strong>（两只轮流唱 + 双灯）也交 —— 那是<strong>加分项</strong>，做出来就交
+· 交过的框右边会显示「已提交 hh:mm」；学号填错了点旁边的小字号改</p></div><div class="card block-card tone-slate"><h3>交之前自查</h3>
+<p>· 每份都要<strong>在板子上跑通了</strong>再交（框里放一份没跑过的，老师一眼看得出来）
+· 报错先翻 <strong>P17 排错页</strong> —— 别急着交
+· 点提交说「没交上」：先看课件是不是<strong>从网址打开的</strong>（双击桌面上的文件交不上去）</p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p17" data-slide="17" data-total="21" data-layout="cards-3" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>它不响、或者不像在唱歌</h1><p class="kicker">对着现象查，<strong>一次只动一处</strong></p></header>
+<div class="slide-body"><div class="card block-card tone-red-solid"><h3>一点声音都没有</h3>
+<p>· 蜂鸣器接的是 <strong>23 号口</strong>吗（别接到 22/21 —— 那是数码管的）
+· <code>box.py</code> 存到<strong>电脑</strong>上了 → 另存到 <strong>MicroPython 设备</strong>
+· 装过也要<strong>重装</strong>：这版 box.py 才认八度记号（<code>-</code> 低八度、<code>+</code> 高八度）</p></div><div class="card block-card tone-amber"><h3>两只只有一只响</h3>
+<p>· 第二只接的是 <strong>25 号口</strong>吗？两只插在<strong>同一个脚</strong>上就只响一只
+· <strong>给谁 <code>tone()</code> / <code>play()</code> 就是谁在响</strong> —— <code>b1</code>、<code>b2</code> 是不是写混了？
+· 两只的 GND 都要接上（可以共用一排）</p></div><div class="card block-card tone-slate"><h3>停不下来 / 一直响</h3>
+<p>· <code>tone()</code> 是<strong>响完自己停</strong>的；一直响多半是循环里少写了时长
+· 实在停不住：按板上 <strong>EN</strong> 键复位，或 Thonny 里按 <strong>Ctrl+C</strong>
+· 学会 <strong>Ctrl+C 急停</strong>，这节课一定用得上</p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p18" data-slide="18" data-total="21" data-layout="cards-2" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>今天带走</h1></header>
+<div class="slide-body"><div class="card block-card tone-amber"><h3>你来收口</h3>
+<p>· 蜂鸣器里那个数字，管的是<strong>什么</strong>？
+· 两只一起唱时，第二个音要比第一个音<strong>高还是低</strong>才好听？
+· <code>beat</code> 改大，歌变<strong>快</strong>还是变<strong>慢</strong>？</p></div><div class="card block-card tone-slate"><h3>收工前</h3>
+<p>· 蜂鸣器<strong>捏着外壳</strong>拔，别拽引脚、别压扁
+· 两只蜂鸣器、灯、杜邦线都装回袋子，桌面清干净再走
+· 灯下面的面包板别忘了收</p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p19" data-slide="19" data-total="21" data-layout="stack" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>备用曲库 · 五首歌的谱子</h1><p class="kicker">没问到 AI、或者 AI 给的不像，就用这里的 —— 直接抄进 <code>b.play("…")</code></p></header>
+<div class="slide-body"><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-k">from</span> box <span class="tok-k">import</span> Buzzer
+b = Buzzer(<span class="tok-n">23</span>)
+
+<span class="tok-c"># 《小星星》（空格 = 停一下）</span>
+b.play(<span class="tok-s">&quot;1155665 4433221 5544332 5544332&quot;</span>)
+<span class="tok-c"># 《两只老虎》</span>
+b.play(<span class="tok-s">&quot;1231 1231 345 345 565431 565431 151 151&quot;</span>)
+<span class="tok-c"># 《欢乐颂》</span>
+b.play(<span class="tok-s">&quot;334554321123322&quot;</span>)
+<span class="tok-c"># 《生日快乐》前 3 句（`+` = 高八度）</span>
+b.play(<span class="tok-s">&quot;11214311215411+16432&quot;</span>)
+<span class="tok-c"># 《超级马里奥》开头（`+` = 高八度）</span>
+b.play(<span class="tok-s">&quot;+3+30+30+1+3+5050+1503&quot;</span>)</code></pre>
+</div><div class="card block-card tone-slate"><h3>用之前先知道三件事</h3>
+<p>· 谱子<strong>只有数字</strong>：<code>-</code> 开头 = 低八度、<code>+</code> 开头 = 高八度（<strong>P8</strong>）
+· 板子上每个音<strong>一样长</strong>，节奏是粗的 —— 想拖长某个音，就在后面补一句 <code>b.tone(频率, 0.6)</code>
+· 一首歌想再长一点：把某一串的最后几个数字<strong>再抄一遍</strong>（比如小星星的 <code>5544332</code>）</p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p20" data-slide="20" data-total="21" data-layout="cards-2" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>参考答案 · 练习 1 和 练习 3</h1><p class="kicker">先自己写，卡住了再看</p></header>
+<div class="slide-body"><div class="card block-card tone-green-solid"><h3>练习 1（编歌）</h3>
+<p>· 没有唯一答案 —— <strong>AI 回来什么就填什么</strong>，能听出来就成
+· 两句典型的样子：
+· 两只老虎 <code>1231 1231 345 345</code>
+· 小星星 <code>1155665 4433221</code>
+· 想慢一点：<code>b.play(歌, beat=0.45)</code></p></div><div class="card block-card tone-amber"><h3>练习 3 和 挑战 的空</h3>
+<p>· 练习 3：空1 = <code>1231</code>（同一句）｜ 空2 = <code>0.25</code>（0.5 的一半）
+· 挑战：空1 = <code>"345"</code>（第二句歌，<strong>引号别丢</strong>）｜ 空2 = <code>on()</code></p></div></div>
+<div class="slide-media"></div>
+</section>
+<section class="slide" id="p21" data-slide="21" data-total="21" data-layout="stack" data-ratio="50/50" data-has-text="false">
+<header class="slide-head"><h1>参考答案 · 练习 2 节奏灯</h1><p class="kicker">这份是"咚 咚 啪"的写法 —— 你自己的节奏<strong>不必跟它一样</strong></p></header>
+<div class="slide-body"><div class="code-wrapper block-code">
+<div class="code-toolbar">
+<span class="code-lang">Python</span>
+<button type="button" class="copy-btn" data-copy>复制全部代码</button>
+</div>
+<pre class="code-box"><code><span class="tok-k">from</span> box <span class="tok-k">import</span> LED
+<span class="tok-k">from</span> time <span class="tok-k">import</span> sleep
+
+led = LED(<span class="tok-n">2</span>)          <span class="tok-c"># 板载蓝灯；想用外接灯就写 LED(32)</span>
+<span class="tok-k">while</span> <span class="tok-k">True</span>:
+    led.on()          <span class="tok-c"># 咚：亮一下就好</span>
+    sleep(<span class="tok-n">0.05</span>)
+    led.off()
+    sleep(<span class="tok-n">0.25</span>)       <span class="tok-c"># 停一拍</span>
+    led.on()          <span class="tok-c"># 咚：再来一次</span>
+    sleep(<span class="tok-n">0.05</span>)
+    led.off()
+    sleep(<span class="tok-n">0.25</span>)
+    led.on()          <span class="tok-c"># 啪：亮得久一点，就有&quot;重&quot;的感觉</span>
+    sleep(<span class="tok-n">0.20</span>)
+    led.off()
+    sleep(<span class="tok-n">0.60</span>)       <span class="tok-c"># 一段结束，长停</span></code></pre>
+</div></div>
+<div class="slide-media"></div>
+</section>
+<nav class="hud" aria-label="翻页">
+  <button type="button" class="hud-btn" data-act="prev" aria-label="上一页">‹</button>
+  <span class="hud-page" aria-live="polite">1 / 21</span>
+  <button type="button" class="hud-btn" data-act="next" aria-label="下一页">›</button>
+  <button type="button" class="hud-btn" data-act="overview" aria-label="总览">▦</button>
+  <button type="button" class="hud-btn" data-act="fullscreen" aria-label="全屏">⛶</button>
+</nav>
+</div>
+</div>
+<script>
+(function () {
+  window.__SLIDE_COMPONENTS = window.__SLIDE_COMPONENTS || {};
+
+  // 作答提交组件：框里写/粘内容 → 点「提交」→ 第一次弹窗问一次学号 → PUT 到文件后端落盘
+  // 语义：只管「填写 → 提交」，与题目/答案解耦（题目自己用 @card 排版）
+  // 代码高亮是附带能力：kind=code 走 Python 子集高亮，kind=text 就是纯文字简答
+  // 落盘结构：<base>/<日期>-<班级>-<课程>/<学号>/<任务名>.<ext>
+  const NS = "slide-submit-answer:v1";
+  const SID_KEY = NS + ":student-id";
+  const SID_RE = /^[0-9A-Za-z_-]{1,12}$/;
+
+  // kind 决定输入形态、后缀与是否高亮；扩题型在这里加一行 + 输入区加一个分支
+  const KINDS = {
+    code: { ext: "py", comment: "# ", highlight: true },
+    text: { ext: "txt", comment: "", highlight: false },
+  };
+
+  // Python 子集高亮：与构建期 markdown_subset.py 的规则、tok-* 类名保持一致
+  const KW = [
+    "False", "None", "True", "and", "as", "assert", "async", "await", "break",
+    "class", "continue", "def", "del", "elif", "else", "except", "finally",
+    "for", "from", "global", "if", "import", "in", "is", "lambda", "not", "or",
+    "pass", "raise", "return", "try", "while", "with", "yield",
+  ];
+  const TOKEN_RE = new RegExp(
+    "(#.*$)|" +
+      "(\"(?:\\\\.|[^\"\\\\])*\"|'(?:\\\\.|[^'\\\\])*')|" +
+      "\\b(" + KW.join("|") + ")\\b|" +
+      "\\b(\\d+(?:\\.\\d+)?)\\b",
+    "gm"
+  );
+
+  function escapeHtml(s) {
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function highlightPython(code) {
+    let out = "";
+    let last = 0;
+    let m;
+    TOKEN_RE.lastIndex = 0;
+    while ((m = TOKEN_RE.exec(code)) !== null) {
+      out += escapeHtml(code.slice(last, m.index));
+      if (m[1]) out += '<span class="tok-c">' + escapeHtml(m[1]) + "</span>";
+      else if (m[2]) out += '<span class="tok-s">' + escapeHtml(m[2]) + "</span>";
+      else if (m[3]) out += '<span class="tok-k">' + escapeHtml(m[3]) + "</span>";
+      else out += '<span class="tok-n">' + escapeHtml(m[4]) + "</span>";
+      last = m.index + m[0].length;
+    }
+    out += escapeHtml(code.slice(last));
+    return out;
+  }
+
+  // localStorage 可能被隐私模式禁用：探一次，不可用就降级为「不记学号、不存草稿」
+  function openStore() {
+    try {
+      const ls = window.localStorage;
+      const probe = NS + ":probe";
+      ls.setItem(probe, "1");
+      ls.removeItem(probe);
+      return ls;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function pad2(n) {
+    return (n < 10 ? "0" : "") + n;
+  }
+
+  function stamp(d) {
+    return (
+      d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) +
+      " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes()) + ":" + pad2(d.getSeconds())
+    );
+  }
+
+  function clock(d) {
+    return pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  }
+
+  function todayStr() {
+    const d = new Date();
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+  }
+
+  // 日期/班级/课程由 frontmatter 灌到 .deck，组件只读，不写死任何教务信息
+  function deckInfo() {
+    const deck = document.querySelector(".deck");
+    function g(name) {
+      return (deck && deck.getAttribute("data-" + name)) || "";
+    }
+    return {
+      course: g("course"),
+      klass: g("class"),
+      date: g("date"),
+      submitBase: g("submit-base"),
+    };
+  }
+
+  function dateOnly(s) {
+    const m = String(s || "").match(/\d{4}-\d{2}-\d{2}/);
+    return m ? m[0] : todayStr();
+  }
+
+  // 路径段消毒：去分隔符与首部点，防 ../ 穿越；中文保留
+  function clean(s, fallback) {
+    const out = String(s === null || s === undefined ? "" : s)
+      .trim()
+      .replace(/[/\\:*?"<>|]+/g, "_")
+      .replace(/[\u0000-\u001f]/g, "")
+      .replace(/^\.+/, "")
+      .slice(0, 60);
+    return out || fallback || "";
+  }
+
+  function targetOf(payload, info, sid) {
+    const kind = KINDS[payload.kind] ? payload.kind : "code";
+    const ext = clean(payload.ext || KINDS[kind].ext, "txt");
+    const assignment = clean(payload.assignment, "作答");
+    const folder =
+      clean(dateOnly(payload.date || info.date), todayStr()) + "-" +
+      clean(payload.klass || info.klass, "班级") + "-" +
+      clean(payload.course || info.course, "课程");
+    const base =
+      payload.base === undefined || payload.base === null
+        ? "submissions"
+        : String(payload.base).replace(/^\/+|\/+$/g, "");
+    const file = assignment + "." + ext;
+    const segs = [base, folder, sid, file].filter(function (s) {
+      return s;
+    });
+    // endpoint 缺省 = 同源（课件直接由文件服务分发时零配置可用）
+    const ep = String(payload.endpoint || info.submitBase || "").replace(/\/+$/, "");
+    return {
+      url: ep + "/" + segs.map(encodeURIComponent).join("/"),
+      key: [base, folder, file].filter(Boolean).join("/"),
+    };
+  }
+
+  function buildBody(payload, info, sid, value, when) {
+    const kind = KINDS[payload.kind] ? payload.kind : "code";
+    const head = KINDS[kind].comment;
+    const lines = [];
+    if (payload.header !== false) {
+      lines.push(head + "学号：" + sid);
+      lines.push(head + "班级：" + [info.klass, info.course].filter(Boolean).join(" "));
+      lines.push(head + "任务：" + clean(payload.assignment, "作答"));
+      lines.push(head + "提交时间：" + stamp(when));
+      lines.push(head + "----- 以下为学生提交内容 -----");
+      lines.push("");
+    }
+    lines.push(String(value).replace(/\s+$/, ""));
+    return lines.join("\n") + "\n";
+  }
+
+  function mount(root, payload) {
+    const info = deckInfo();
+    const store = openStore();
+    const kind = KINDS[payload.kind] ? payload.kind : "code";
+    const spec = KINDS[kind];
+    const slide = root.closest(".slide");
+    const pageId = slide && slide.id ? slide.id : "p0";
+
+    let sid = "";
+    if (store) {
+      try {
+        sid = store.getItem(SID_KEY) || "";
+      } catch (e) {
+        sid = "";
+      }
+    }
+    if (!SID_RE.test(sid)) sid = "";
+
+    let target = targetOf(payload, info, sid || "00");
+
+    // 复用引擎代码框外框（.code-wrapper/.block-code 给版式与深色框，.code-box 给等宽字体与 tok 配色）
+    root.classList.remove("demo");
+    root.classList.add("submit-answer", "code-wrapper", "block-code");
+    root.setAttribute("data-state", "idle");
+    root.setAttribute("data-kind", kind);
+    root.innerHTML = "";
+
+    // ---- 工具栏：左任务名 / 右状态 + 提交 ----
+    const bar = document.createElement("div");
+    bar.className = "code-toolbar submit-answer-bar";
+
+    const name = document.createElement("span");
+    name.className = "code-lang submit-answer-name";
+    name.textContent = String(payload.assignment || "作答");
+
+    const right = document.createElement("span");
+    right.className = "submit-answer-right";
+
+    const state = document.createElement("span");
+    state.className = "submit-answer-state";
+    state.setAttribute("aria-live", "polite");
+
+    const sidChip = document.createElement("button");
+    sidChip.type = "button";
+    sidChip.className = "submit-answer-sid";
+    sidChip.title = "学号填错了？点这里改";
+    sidChip.textContent = "";
+
+    const submitBtn = document.createElement("button");
+    submitBtn.type = "button";
+    submitBtn.className = "submit-answer-submit";
+    submitBtn.textContent = "提交";
+
+    right.append(state, sidChip, submitBtn);
+    bar.append(name, right);
+
+    // ---- 框体：ghost 层出高亮，textarea 透明压在上面（两层同宽同字体，换行位置一致）----
+    const box = document.createElement("div");
+    box.className = "code-box submit-answer-box";
+
+    const ghost = document.createElement("div");
+    ghost.className = "submit-answer-ghost";
+    ghost.setAttribute("aria-hidden", "true");
+    const ph = document.createElement("span");
+    ph.className = "submit-answer-ph";
+    ph.textContent = String(payload.placeholder || "在框里作答");
+    const pre = document.createElement("pre");
+    pre.className = "submit-answer-pre";
+    ghost.append(ph, pre);
+
+    const area = document.createElement("textarea");
+    area.className = "submit-answer-input";
+    area.rows = 1;
+    area.setAttribute("spellcheck", "false");
+    area.setAttribute("autocapitalize", "off");
+    area.setAttribute("autocorrect", "off");
+    area.setAttribute("aria-label", String(payload.assignment || "作答") + " 作答框");
+
+    // 打字时按键留在框里，别交给翻页引擎
+    area.addEventListener("keydown", function (ev) {
+      const k = ev.key;
+      if (
+        k === " " || k === "Spacebar" || k === "ArrowLeft" || k === "ArrowRight" ||
+        k === "ArrowUp" || k === "ArrowDown" || k === "PageUp" || k === "PageDown" ||
+        k === "Home" || k === "End"
+      ) {
+        ev.stopPropagation();
+      }
+      if (k === "Tab") {
+        ev.preventDefault();
+        const s = area.selectionStart;
+        const e = area.selectionEnd;
+        area.value = area.value.slice(0, s) + "    " + area.value.slice(e);
+        area.selectionStart = area.selectionEnd = s + 4;
+        render();
+      }
+      if (k === "Enter" && (ev.ctrlKey || ev.metaKey)) {
+        ev.preventDefault();
+        trySubmit();
+      }
+    });
+
+    box.append(ghost, area);
+
+    // ---- 问学号的弹窗 ----
+    const modal = document.createElement("div");
+    modal.className = "submit-answer-modal";
+    modal.hidden = true;
+    const scrim = document.createElement("div");
+    scrim.className = "submit-answer-scrim";
+    const dialog = document.createElement("div");
+    dialog.className = "submit-answer-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    const ask = document.createElement("p");
+    ask.className = "submit-answer-ask";
+    ask.textContent = "输入你的学号";
+    const sidInput = document.createElement("input");
+    sidInput.type = "text";
+    sidInput.className = "submit-answer-sid-input";
+    sidInput.setAttribute("inputmode", "numeric");
+    sidInput.setAttribute("autocomplete", "off");
+    sidInput.setAttribute("placeholder", "例如 01");
+    const err = document.createElement("p");
+    err.className = "submit-answer-error";
+    const acts = document.createElement("div");
+    acts.className = "submit-answer-acts";
+    const okBtn = document.createElement("button");
+    okBtn.type = "button";
+    okBtn.className = "submit-answer-ok";
+    okBtn.textContent = "确定";
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "submit-answer-cancel";
+    cancelBtn.textContent = "取消";
+    acts.append(okBtn, cancelBtn);
+    dialog.append(ask, sidInput, err, acts);
+    modal.append(scrim, dialog);
+
+    root.append(bar, box, modal);
+
+    // ---- 渲染高亮层 ----
+    function render() {
+      const value = area.value;
+      if (value) {
+        ph.textContent = "";
+        pre.innerHTML = spec.highlight
+          ? highlightPython(value) + "\n"
+          : escapeHtml(value) + "\n";
+      } else {
+        ph.textContent = String(payload.placeholder || "在框里作答");
+        pre.textContent = "";
+      }
+    }
+
+    // ---- 状态 ----
+    // 没交的时候是红灯 + 这句提醒（老师要学生一眼看到这页有任务）
+    const IDLE_TEXT = "注意完成任务并提交";
+
+    function setState(name2, text) {
+      root.setAttribute("data-state", name2);
+      state.textContent = text || (name2 === "idle" ? IDLE_TEXT : "");
+      sidChip.textContent = name2 === "done" && sid ? sid : "";
+    }
+
+    function draftKey() {
+      return NS + ":draft:" + target.key;
+    }
+
+    function saveDraft() {
+      if (!store) return;
+      try {
+        if (area.value) store.setItem(draftKey(), area.value);
+        else store.removeItem(draftKey());
+      } catch (e) {
+        /* 配额满：不打断课堂 */
+      }
+    }
+
+    // ---- 预填内容：给一块骨架，学生在框里原位改 ----
+    // 只在「本机没有草稿」时生效：草稿是学生自己改到一半的东西，绝不能用预填去覆盖
+    const prefillText =
+      payload.prefill === undefined || payload.prefill === null
+        ? ""
+        : String(payload.prefill).replace(/\s+$/, "");
+    if (prefillText) area.value = prefillText;
+
+    // 进页恢复草稿与上次提交结果
+    if (store) {
+      try {
+        const saved = store.getItem(draftKey());
+        if (saved) area.value = saved;
+        const last = store.getItem(NS + ":last:" + target.key);
+        if (last) {
+          const rec = JSON.parse(last);
+          if (rec && rec.time) setState("done", "已提交 " + rec.time);
+        }
+      } catch (e) {
+        /* 读不到就算了 */
+      }
+    }
+    if (root.getAttribute("data-state") !== "done") setState("idle");
+    render();
+
+    let timer = null;
+    area.addEventListener("input", function () {
+      render();
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(saveDraft, 250);
+    });
+    area.addEventListener("blur", saveDraft);
+
+    // ---- 弹窗逻辑 ----
+    let afterSid = null;
+
+    function openModal(next) {
+      afterSid = next || null;
+      err.textContent = "";
+      sidInput.value = sid;
+      modal.hidden = false;
+      sidInput.focus();
+      sidInput.select();
+    }
+
+    function closeModal() {
+      modal.hidden = true;
+      afterSid = null;
+    }
+
+    function confirmSid() {
+      const val = String(sidInput.value || "").trim();
+      if (!SID_RE.test(val)) {
+        err.textContent = "学号只能是数字或字母，别带空格和符号";
+        sidInput.focus();
+        return;
+      }
+      sid = val;
+      if (store) {
+        try {
+          store.setItem(SID_KEY, sid);
+        } catch (e) {
+          /* 存不住就本次会话用 */
+        }
+      }
+      target = targetOf(payload, info, sid);
+      const next = afterSid;
+      closeModal();
+      if (next) next();
+      else if (root.getAttribute("data-state") === "done") setState("done", state.textContent);
+    }
+
+    sidChip.addEventListener("click", function () {
+      openModal(null);
+    });
+    okBtn.addEventListener("click", confirmSid);
+    cancelBtn.addEventListener("click", closeModal);
+    scrim.addEventListener("click", closeModal);
+    sidInput.addEventListener("keydown", function (ev) {
+      ev.stopPropagation();
+      if (ev.key === "Enter") {
+        ev.preventDefault();
+        confirmSid();
+      }
+      if (ev.key === "Escape") closeModal();
+    });
+    sidInput.addEventListener("keyup", function (ev) {
+      ev.stopPropagation();
+    });
+
+    // ---- 提交 ----
+    function doSubmit() {
+      const value = area.value;
+      if (!value.replace(/\s/g, "")) {
+        setState("fail", "框还是空的 · 先写再交");
+        area.focus();
+        return;
+      }
+      // 预填骨架原样交上来 = 一个字没动。只在设了 prefill 的题上生效，别的课件不受影响
+      if (prefillText && value.trim() === prefillText.trim()) {
+        setState("fail", "框里还是原样 · 先改一处再交");
+        area.focus();
+        return;
+      }
+      const when = new Date();
+      target = targetOf(payload, info, sid);
+      const body = buildBody(payload, info, sid, value, when);
+      setState("sending", "正在提交…");
+      submitBtn.disabled = true;
+
+      const done = function (res) {
+        submitBtn.disabled = false;
+        if (!res.ok) throw new Error("后端返回 " + res.status);
+        const hm = clock(when);
+        setState("done", "已提交 " + hm);
+        if (store) {
+          try {
+            store.setItem(
+              NS + ":last:" + target.key,
+              JSON.stringify({ sid: sid, time: hm, at: stamp(when), url: target.url })
+            );
+          } catch (e) {
+            /* 记不住不影响交卷 */
+          }
+        }
+      };
+
+      const fail = function (e) {
+        submitBtn.disabled = false;
+        setState("fail", "没交上（" + (e && e.message ? e.message : "网络不通") + "）· 点提交重试");
+      };
+
+      if (!window.fetch) {
+        fail(new Error("这个浏览器太老"));
+        return;
+      }
+      window
+        .fetch(target.url, {
+          method: "PUT",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: body,
+        })
+        .then(done)
+        .catch(fail);
+    }
+
+    function trySubmit() {
+      // 预填骨架原样交：先别弹学号框，直接拦下来（学生要的是"哪句话"，不是再填一次学号）
+      if (prefillText && area.value.trim() === prefillText.trim()) {
+        setState("fail", "框里还是原样 · 先改一处再交");
+        area.focus();
+        return;
+      }
+      if (!sid) {
+        openModal(doSubmit);
+        return;
+      }
+      const last = store ? store.getItem(NS + ":last:" + target.key) : null;
+      if (last && !window.confirm("这份已经交过一次，再交一次会覆盖上一次，继续？")) return;
+      doSubmit();
+    }
+
+    submitBtn.addEventListener("click", trySubmit);
+
+    return {
+      leave: function () {
+        saveDraft();
+      },
+      staticOn: function () {
+        render();
+      },
+    };
+  }
+
+  window.__SLIDE_COMPONENTS["submit-answer"] = mount;
+})();
+
+(function () {
+  const deck = document.querySelector(".deck");
+  if (!deck) return;
+
+  const slides = Array.from(document.querySelectorAll(".slide"));
+  const total = slides.length;
+  const staticMode =
+    new URLSearchParams(location.search).has("static") ||
+    matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const registry = window.__SLIDE_COMPONENTS || {};
+  const padPage = document.body.classList.contains("theme-replica");
+  const formatPage = (n) => (padPage ? String(n).padStart(2, "0") : String(n));
+  const demos = [];
+
+  function mountAll() {
+    document.querySelectorAll("[data-demo]").forEach((el) => {
+      const name = el.getAttribute("data-demo");
+      const fn = registry[name];
+      let payload = {};
+      try {
+        payload = JSON.parse(el.getAttribute("data-payload") || "{}");
+      } catch (e) {
+        el.textContent = "演示数据坏了";
+        console.error(e);
+        return;
+      }
+      if (!fn) {
+        el.textContent =
+          "未知组件 " + name + "（可用：" + Object.keys(registry).join(", ") + "）";
+        return;
+      }
+      const ctl = fn(el, payload);
+      if (ctl) demos.push({ el, ctl });
+    });
+  }
+
+  function bindMediaZoom() {
+    document.querySelectorAll("[data-media-zoom]").forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const frame = btn.closest(".media-figure");
+        if (frame) toggleImageZoom(frame);
+      });
+    });
+  }
+
+  // 图卡全屏：优先原生全屏；沙箱/不支持时退到固定遮罩
+  function toggleImageZoom(frame) {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => {});
+      return;
+    }
+    const req = frame.requestFullscreen || frame.webkitRequestFullscreen;
+    if (req) {
+      try {
+        const p = req.call(frame);
+        if (p && typeof p.catch === "function") {
+          p.catch(() => openZoomOverlay(frame));
+        }
+        return;
+      } catch (e) {
+        // 被沙箱拒（iframe allow-fullscreen 缺失）→ 落到遮罩
+      }
+    }
+    openZoomOverlay(frame);
+  }
+
+  function zoomOverlay() {
+    return document.querySelector(".media-zoom-overlay");
+  }
+
+  function closeZoomOverlay() {
+    const el = zoomOverlay();
+    if (el) el.parentNode.removeChild(el);
+  }
+
+  function openZoomOverlay(frame) {
+    if (zoomOverlay()) return;
+    const img = frame.querySelector("img");
+    if (!img) return;
+    const overlay = document.createElement("div");
+    overlay.className = "media-zoom-overlay";
+    const big = document.createElement("img");
+    big.src = img.getAttribute("src");
+    big.alt = img.getAttribute("alt") || "";
+    overlay.appendChild(big);
+    const close = document.createElement("button");
+    close.type = "button";
+    close.className = "media-zoom-close";
+    close.textContent = "✕ 退出全屏";
+    overlay.appendChild(close);
+    overlay.addEventListener('click', closeZoomOverlay);
+    document.body.appendChild(overlay);
+  }
+
+  function exitImageFullscreen() {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    closeZoomOverlay();
+  }
+
+  function bindCopyButtons() {
+    document.querySelectorAll(".copy-btn").forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        copyCode(btn);
+      });
+    });
+  }
+
+  function copyCode(btn) {
+    const wrapper = btn.closest(".code-wrapper");
+    const codeEl = wrapper && wrapper.querySelector("code");
+    if (!codeEl) return;
+    const text = codeEl.innerText;
+    const done = () => {
+      const original = btn.textContent;
+      btn.classList.add("copied");
+      btn.textContent = "✓ 已复制";
+      setTimeout(() => {
+        btn.classList.remove("copied");
+        btn.textContent = original;
+      }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(() => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); } catch (e) {}
+    document.body.removeChild(ta);
+    done();
+  }
+
+  function toggleFullscreen() {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  }
+
+  function callsOn(slide, method) {
+    demos
+      .filter((d) => slide.contains(d.el))
+      .forEach((d) => d.ctl && typeof d.ctl[method] === "function" && d.ctl[method]());
+  }
+
+  function currentIndex() {
+    const cur = slides.findIndex((s) => s.classList.contains("is-current"));
+    return cur < 0 ? 0 : cur;
+  }
+
+  function enterSlide(idx) {
+    slides.forEach((s, i) => {
+      if (i !== idx) callsOn(s, "leave");
+    });
+    callsOn(slides[idx], "enter");
+  }
+
+  function go(n) {
+    const idx = Math.max(0, Math.min(total - 1, n));
+    if (idx !== currentIndex()) exitImageFullscreen();
+    slides.forEach((s, i) => s.classList.toggle("is-current", i === idx));
+    location.hash = "#" + (idx + 1);
+    const page = document.querySelector(".hud-page");
+    if (page) page.textContent = formatPage(idx + 1) + " / " + formatPage(total);
+    enterSlide(idx);
+  }
+
+  function forward() {
+    if (currentIndex() < total - 1) go(currentIndex() + 1);
+  }
+
+  function back() {
+    if (currentIndex() > 0) go(currentIndex() - 1);
+  }
+
+  function applyStatic() {
+    document.querySelectorAll(".fragment").forEach((f) => f.classList.add("is-shown"));
+    slides.forEach((s) => callsOn(s, "staticOn"));
+  }
+
+  function toggleOverview() {
+    document.body.classList.toggle("is-overview");
+    if (document.body.classList.contains("is-overview")) {
+      slides.forEach((s) => callsOn(s, "leave"));
+    } else {
+      enterSlide(currentIndex());
+    }
+  }
+
+  function fromHash() {
+    const n = parseInt(location.hash.replace(/^#/, ""), 10);
+    const idx = n >= 1 && n <= total ? n - 1 : 0;
+    const current = document.querySelector(".slide.is-current");
+    if (current && idx === currentIndex()) return;
+    go(idx);
+  }
+
+  mountAll();
+  bindCopyButtons();
+  bindMediaZoom();
+  if (staticMode) applyStatic();
+  fromHash();
+
+  const hud = document.querySelector(".hud");
+  if (hud) {
+    hud.addEventListener('click', (ev) => {
+      const btn = ev.target.closest("button");
+      if (!btn) return;
+      const act = btn.getAttribute("data-act");
+      if (act === "prev") back();
+      else if (act === "next") forward();
+      else if (act === "overview") toggleOverview();
+      else if (act === "fullscreen") toggleFullscreen();
+    });
+  }
+
+  document.addEventListener('click', (ev) => {
+    if (!document.body.classList.contains("is-overview")) return;
+    const s = ev.target.closest(".slide");
+    if (!s) return;
+    document.body.classList.remove("is-overview");
+    go(slides.indexOf(s));
+  });
+
+  function isEditable(target) {
+    if (!target || typeof target.closest !== "function") return false;
+    return !!target.closest(
+      "input, textarea, select, [contenteditable=''], [contenteditable='true']"
+    );
+  }
+
+  document.addEventListener("keydown", (ev) => {
+    // 图卡遮罩开着时，Esc 先退全屏（别顺手退出总览/翻页）
+    if (ev.key === "Escape" && zoomOverlay()) {
+      closeZoomOverlay();
+      return;
+    }
+    // 图卡原生全屏时，Esc 一律退出（不依赖浏览器默认行为）
+    if (ev.key === "Escape" && document.fullscreenElement) {
+      exitImageFullscreen();
+      return;
+    }
+    // 焦点在输入框 / 打字区时，按键归输入框（否则打空格会把课件翻页）
+    if (isEditable(ev.target) && !document.body.classList.contains("is-overview")) return;
+    if (ev.key === "o" || ev.key === "O") {
+      toggleOverview();
+      return;
+    }
+    if (ev.key === "Escape" && document.body.classList.contains("is-overview")) {
+      toggleOverview();
+      return;
+    }
+    if (ev.key === "f" || ev.key === "F") {
+      ev.preventDefault();
+      toggleFullscreen();
+      return;
+    }
+    if (document.body.classList.contains("is-overview")) return;
+    if (
+      ev.key === "ArrowRight" ||
+      ev.key === " " ||
+      ev.key === "Spacebar" ||
+      ev.key === "PageDown"
+    ) {
+      ev.preventDefault();
+      forward();
+    } else if (ev.key === "ArrowLeft" || ev.key === "PageUp") {
+      ev.preventDefault();
+      back();
+    } else if (ev.key === "Home") {
+      ev.preventDefault();
+      go(0);
+    } else if (ev.key === "End") {
+      ev.preventDefault();
+      go(total - 1);
+    }
+  });
+
+  window.addEventListener("hashchange", fromHash);
+})();
+
+</script>
+</body>
+</html>
